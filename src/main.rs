@@ -243,6 +243,12 @@ impl CPU6502 {
                 println!("Pushed A={:#04x} ADDR={:#06x}", data, address);
             }
 
+            0x4c => { //JMP Absolute
+                println!("JMP Absolute");
+                let address = self.get_address(AdressingType::Absolute);
+                self.PC = address;
+            }
+
             0x68 => {
                 println!("PLA");
                 let address = 0x0100 | self.SP as u16;
@@ -291,6 +297,13 @@ impl CPU6502 {
                 let address = self.get_address(AdressingType::Absolute);
                 let data = self.memory.memory.get_mut(address as usize).unwrap();
                 *data = self.Y;
+            }
+
+            0x8d => { //STA Absolute
+                println!("STA Absolute");
+                let address = self.get_address(AdressingType::Absolute);
+                let data = self.memory.memory.get_mut(address as usize).unwrap();
+                *data = self.A;
             }
 
             0x8e => { //STX Absolute
@@ -740,6 +753,45 @@ mod tests{
         assert!(cpu.P.get_C());
         assert!(cpu.P.get_Z());
 
+    }
+
+    #[test]
+    fn test_jmp(){
+         let mut mem = Memory::new(4*1024);
+
+        mem.memory[0x600] = 0xa9; //LDA
+        mem.memory[0x601] = 0x03; //#$03
+        mem.memory[0x602] = 0x4c; //JMP
+        mem.memory[0x603] = 0x08;
+        mem.memory[0x604] = 0x06; //$0608
+        mem.memory[0x605] = 0x00; //BRK
+        mem.memory[0x606] = 0x00; //BRK
+        mem.memory[0x607] = 0x00; //BRK
+        mem.memory[0x608] = 0x8d; //STA
+        mem.memory[0x609] = 0x00;
+        mem.memory[0x60a] = 0x02; //$0200
+        mem.memory[0x60b] = 0xea; //NOP
+
+        let mut cpu = CPU6502::new(mem);
+
+        cpu.reset();
+
+        cpu.PC = 0x0600;
+
+        println!("CPU: {:?}", cpu);
+
+        for _i in 0..4{
+            cpu.run_single();
+            println!("CPU: {:?}", cpu);
+        }
+
+        assert_eq!(cpu.A, 0x03);
+        assert_eq!(cpu.X, 0x00);
+        assert_eq!(cpu.Y, 0x00);
+        assert!(!cpu.P.get_N());
+        assert!(!cpu.P.get_C());
+        assert!(!cpu.P.get_Z());
+        assert_eq!(cpu.memory.memory[0x0200], 0x03);
     }
 }
 
