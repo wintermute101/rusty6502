@@ -72,9 +72,9 @@ pub struct CPU6502{
 impl std::fmt::Debug for CPU6502 {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error>{
         fmt.write_str(&format!("PC={:#06x} A={:#04x} X={:#04x} Y={:#04x} SP={:#04x} P={:?}\n"
-                                        , self.PC, self.A, self.X, self.Y, self.SP, self.P))?;
-        fmt.write_str(&format!("{:?}", self.memory))?;
-        fmt.write_str(&format!(""))
+                                        , self.PC, self.A, self.X, self.Y, self.SP, self.P))
+        //fmt.write_str(&format!("{:?}", self.memory))?;
+        //fmt.write_str(&format!(""))
     }
 }
 
@@ -151,9 +151,8 @@ impl CPU6502 {
 
     pub fn run_single(&mut self){
         let ins = self.memory.read_memory(self.PC);
-        self.PC += 1;
-
         print!("Running INS={:#04x} PC={:#06x} ", ins, self.PC);
+        self.PC += 1;
 
         match ins {
             0x00 => { //BRK
@@ -188,8 +187,15 @@ impl CPU6502 {
             }
 
             0x08 => { //PHP
-                println!("PHP");
-                todo!("PHP={:02x}", ins);
+                let address = 0x0100 | self.SP as u16;
+                let data = self.memory.read_memory(address);
+                self.memory.write_memory(address, self.P.value);
+                let r = self.SP.overflowing_sub(1);
+                self.SP = r.0;
+                if r.1{
+                    println!("Stack Overflow!");
+                }
+                println!("PHP Pushed P={:#04x} ADDR={:#06x}", data, address);
             }
 
             0x09 => { //ORA Immediate
@@ -215,16 +221,9 @@ impl CPU6502 {
                 println!("BPL Relative [{}]", data);
             }
 
-            0x18 => { //PHP
-                let address = 0x0100 | self.SP as u16;
-                let data = self.memory.read_memory(address);
-                self.memory.write_memory(address, self.P.value);
-                let r = self.SP.overflowing_sub(1);
-                self.SP = r.0;
-                if r.1{
-                    println!("Stack Overflow!");
-                }
-                println!("PHP Pushed P={:#04x} ADDR={:#06x}", data, address);
+            0x18 => { //CLC
+                self.P.set_C(false);
+                println!("CLC");
             }
 
             0x20 => { //JSR
@@ -237,6 +236,21 @@ impl CPU6502 {
                 self.memory.write_memory(sp, (self.PC & 0x0ff) as u8);
                 println!("JSR {:#06x} PC={:#06x}", address, self.PC);
                 self.PC = address;
+            }
+
+            0x30 => {
+                let data = self.memory.read_memory(self.PC) as i8;
+                self.PC += 1;
+
+                if self.P.get_N(){
+                    let r = (self.PC as i16).overflowing_add(data as i16);
+                    print!("Branch to PC={:#06x} ", r.0);
+                    self.PC = r.0 as u16;
+                }
+                else {
+                    print!("NOT Branching ");
+                }
+                println!("BMI Relative [{}]", data);
             }
 
             0x48 => { //PHA
@@ -254,9 +268,9 @@ impl CPU6502 {
             0x49 => { //EOR Immediate
                 let data = self.memory.read_memory(self.PC);
                 self.PC += 1;
-                self.A = self.A | data;
+                self.A = self.A ^ data;
                 self.P.set_NZ(self.A);
-                println!("EOR Immediate");
+                println!("EOR Immediate ({:#04x} => {:#04x})", data, self.A);
             }
 
             0x4c => { //JMP Absolute
@@ -290,11 +304,11 @@ impl CPU6502 {
             0x69 => { //ADC Immediate
                 let data = self.memory.read_memory(self.PC);
                 self.PC += 1;
-                let r = self.A.overflowing_add(data);
+                let r = self.A.overflowing_add(data + self.P.get_C() as u8);
                 self.A = r.0;
                 self.P.set_NZ(r.0);
                 self.P.set_C(r.1);
-                println!("ADC Immediate");
+                println!("ADC Immediate ({:#04x} => {:#04x})", data, self.A);
             }
 
             0x6c => { //JMP Indirect
@@ -304,9 +318,9 @@ impl CPU6502 {
             }
 
             0x85 => { //STA ZeroPage
-                println!("STA ZeroPage");
                 let address = self.get_address(AdressingType::ZeroPage);
                 self.memory.write_memory(address, self.A);
+                println!("STA ZeroPage ({:#04x})", self.A);
             }
 
             0x88 => { //DEY
@@ -324,19 +338,34 @@ impl CPU6502 {
             0x8c => { //STY Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 self.memory.write_memory(address, self.Y);
-                println!("STY Absolute");
+                println!("STY Absolute ({:#04x})", self.A);
             }
 
             0x8d => { //STA Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 self.memory.write_memory(address, self.A);
-                println!("STA Absolute");
+                println!("STA Absolute ({:#04x})", self.A);
             }
 
             0x8e => { //STX Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 self.memory.write_memory(address, self.X);
-                println!("STX Absolute");
+                println!("STX Absolute ({:#04x})", self.X);
+            }
+
+            0x90 => { //BCC
+                let data = self.memory.read_memory(self.PC) as i8;
+                self.PC += 1;
+
+                if !self.P.get_C(){
+                    let r = (self.PC as i16).overflowing_add(data as i16);
+                    print!("Branch to PC={:#06x} ", r.0);
+                    self.PC = r.0 as u16;
+                }
+                else {
+                    print!("NOT Branching ");
+                }
+                println!("BCC Relative [{}]", data);
             }
 
             0x98 => { //TYA
@@ -348,7 +377,7 @@ impl CPU6502 {
             0x99 => { //STA AbsoluteY
                 let address = self.get_address(AdressingType::AbsoluteY);
                 self.memory.write_memory(address, self.A);
-                println!("STX AbsoluteY");
+                println!("STX AbsoluteY ({:#04x})", self.Y);
             }
 
             0x9a => {//TXS
@@ -380,6 +409,12 @@ impl CPU6502 {
                 println!("LDX Immediate ({:#04x})", data);
             }
 
+            0xa8 => { //TAY
+                self.Y = self.A;
+                self.P.set_NZ(self.Y);
+                println!("TAY");
+            }
+
             0xa9 => { //LDA Immediate
                 let data = self.memory.read_memory(self.PC);
                 self.PC += 1;
@@ -399,7 +434,22 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = data;
                 self.P.set_NZ(data);
-                println!("LDA Absolute");
+                println!("LDA Absolute ({:#04x})", data);
+            }
+
+            0xb0 => {
+                let data = self.memory.read_memory(self.PC) as i8;
+                self.PC += 1;
+
+                if self.P.get_C(){
+                    let r = (self.PC as i16).overflowing_add(data as i16);
+                    print!("Branch to PC={:#06x} ", r.0);
+                    self.PC = r.0 as u16;
+                }
+                else {
+                    print!("NOT Branching ");
+                }
+                println!("BCS Relative [{}]", data);
             }
 
             0xb1 => { //LDA IndirectY
@@ -407,7 +457,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = data;
                 self.P.set_NZ(data);
-                println!("LDA IndirectY");
+                println!("LDA IndirectY ({:#04x})", data);
             }
 
             0xc0 => { //CPY Immediate
@@ -440,6 +490,17 @@ impl CPU6502 {
                 self.X = self.X.overflowing_sub(1).0;
                 self.P.set_NZ(self.X);
                 println!("DEX");
+            }
+
+            0xcd => { //CMP Absolute
+                let address = self.get_address(AdressingType::Absolute);
+                let data = self.memory.read_memory(address);
+                self.PC += 1;
+                let r = self.A.overflowing_sub(data);
+                print!("CMP v={:?} ", r);
+                self.P.set_NZ(r.0);
+                self.P.set_C(!r.1);
+                println!("CMP Absolute ({:#04x})", data);
             }
 
             0xd0 => { //BNE Relative
@@ -482,11 +543,11 @@ impl CPU6502 {
             0xea => { //NOP
                 println!("NOP");
             }
-            
+
             0xf0 => {
                 let data = self.memory.read_memory(self.PC) as i8;
                 self.PC += 1;
-                
+
                 if self.P.get_Z(){
                     let r = (self.PC as i16).overflowing_add(data as i16);
                     print!("Branch to PC={:#06x} ", r.0);
@@ -496,6 +557,15 @@ impl CPU6502 {
                     print!("NOT Branching ");
                 }
                 println!("BEQ Relative [{}]", data);
+            }
+
+            0xfe => { //INC AbsoluteX
+                let address = self.get_address(AdressingType::AbsoluteX);
+                let mut data = self.memory.read_memory(address);
+                data = data.overflowing_add(1).0;
+                self.memory.write_memory(address, data);
+                self.P.set_NZ(data);
+                println!("INC AbsoluteX ({:#04x})", data);
             }
 
             _  => {
@@ -909,9 +979,10 @@ mod tests{
 
         loop{
             cpu.run_single();
+            //println!("CPU: {:?}", cpu);
             cnt += 1;
 
-            if cnt > 1000{
+            if cnt > 41000{
                 assert!(false);
             }
         }
