@@ -74,7 +74,7 @@ enum AdressingType{
 
 #[derive(PartialEq)]
 enum InterruptType {
-    Normal,
+    INT,
     NMI,
     BRK,
 }
@@ -686,7 +686,7 @@ impl CPU6502 {
             InterruptType::NMI | InterruptType::BRK => {
                 self.memory.read_memory_word(0xfffe) // NMI int vec
             }
-            InterruptType::Normal => {
+            InterruptType::INT => {
                 self.memory.read_memory_word(0xfffa)
             }
         };
