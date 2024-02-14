@@ -423,6 +423,18 @@ impl CPU6502 {
                 println!("SEI");
             }
 
+            0x81 => { //STA IndirectX
+                let address = self.get_address(AdressingType::IndirectX);
+                self.memory.write_memory(address, self.A);
+                println!("STA IndirectX ({:#04x})", self.A);
+            }
+
+            0x84 => { //STY ZeroPage
+                let address = self.get_address(AdressingType::ZeroPage);
+                self.memory.write_memory(address, self.Y);
+                println!("STY ZeroPage ({:#04x})", self.A);
+            }
+
             0x85 => { //STA ZeroPage
                 let address = self.get_address(AdressingType::ZeroPage);
                 self.memory.write_memory(address, self.A);
@@ -480,6 +492,24 @@ impl CPU6502 {
                 println!("BCC Relative [{}]", data);
             }
 
+            0x91 => { //STA IndirectY
+                let address = self.get_address(AdressingType::IndirectY);
+                self.memory.write_memory(address, self.A);
+                println!("STA IndirectY ({:#04x})", self.A);
+            }
+
+            0x94 => { //STY ZeroPage
+                let address = self.get_address(AdressingType::ZeroPage);
+                self.memory.write_memory(address, self.Y);
+                println!("STY ZeroPage ({:#04x})", self.A);
+            }
+
+            0x95 => { //STA ZeroPage
+                let address = self.get_address(AdressingType::ZeroPage);
+                self.memory.write_memory(address, self.A);
+                println!("STA ZeroPage ({:#04x})", self.A);
+            }
+
             0x96 => { //STX ZeroPageY
                 let address = self.get_address(AdressingType::ZeroPageY);
                 self.memory.write_memory(address, self.X);
@@ -533,6 +563,14 @@ impl CPU6502 {
                 println!("LDX Immediate ({:#04x})", data);
             }
 
+            0xa4 => { //LDY ZeroPage
+                let address = self.get_address(AdressingType::ZeroPage);
+                let data = self.memory.read_memory(address);
+                self.Y = data;
+                self.P.set_NZ(data);
+                println!("LDY ZeroPage ({:#04x})", data);
+            }
+
             0xa5 => { //LDA ZeroPage
                 let address = self.get_address(AdressingType::ZeroPage);
                 let data = self.memory.read_memory(address);
@@ -569,12 +607,28 @@ impl CPU6502 {
                 println!("TAX");
             }
 
+            0xac => { //LDY Absolute
+                let address = self.get_address(AdressingType::Absolute);
+                let data = self.memory.read_memory(address);
+                self.Y = data;
+                self.P.set_NZ(data);
+                println!("LDY Absolute ({:#04x})", data);
+            }
+
             0xad => { //LDA Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 let data = self.memory.read_memory(address);
                 self.A = data;
                 self.P.set_NZ(data);
                 println!("LDA Absolute ({:#04x})", data);
+            }
+
+            0xae => { //LDX Absolute
+                let address = self.get_address(AdressingType::Absolute);
+                let data = self.memory.read_memory(address);
+                self.X = data;
+                self.P.set_NZ(data);
+                println!("LDX Absolute ({:#04x})", data);
             }
 
             0xb0 => {
@@ -608,6 +662,14 @@ impl CPU6502 {
                 println!("LDY ZeroPageX ({:#04x})", data);
             }
 
+            0xb5 => { //LDA ZeroPageX
+                let address = self.get_address(AdressingType::ZeroPageX);
+                let data = self.memory.read_memory(address);
+                self.A = data;
+                self.P.set_NZ(data);
+                println!("LDA ZeroPageX ({:#04x})", data);
+            }
+
             0xb6 => { //LDX ZeroPageY
                 let address = self.get_address(AdressingType::ZeroPageY);
                 let data = self.memory.read_memory(address);
@@ -635,6 +697,14 @@ impl CPU6502 {
                 println!("TSX({:#04x})", self.X);
             }
 
+            0xbc => { //LDY AbsoluteX
+                let address = self.get_address(AdressingType::AbsoluteX);
+                let data = self.memory.read_memory(address);
+                self.Y = data;
+                self.P.set_NZ(data);
+                println!("LDY AbsoluteX ({:#04x})", data);
+            }
+
             0xbd => { //LDA AbsoluteX
                 let address = self.get_address(AdressingType::AbsoluteX);
                 let data = self.memory.read_memory(address);
@@ -660,6 +730,25 @@ impl CPU6502 {
                 println!("CPY Immediate");
             }
 
+            0xc4 => { //CPY ZeroPage
+                let address = self.get_address(AdressingType::ZeroPage);
+                let data = self.memory.read_memory(address);
+                let r = self.Y.overflowing_sub(data);
+                self.P.set_NZ(r.0);
+                self.P.set_C(!r.1);
+                println!("CPY ZeroPage");
+            }
+
+            0xc5 => { //CMP ZeroPage
+                let address = self.get_address(AdressingType::ZeroPage);
+                let data = self.memory.read_memory(address);
+                let r = self.A.overflowing_sub(data);
+                print!("CMP v={:?} ", r);
+                self.P.set_NZ(r.0);
+                self.P.set_C(!r.1);
+                println!("CMP ZeroPage ({:#04x})", data);
+            }
+
             0xc8 => { //INY
                 self.Y = self.Y.overflowing_add(1).0;
                 self.P.set_NZ(self.Y);
@@ -681,6 +770,15 @@ impl CPU6502 {
                 self.X = self.X.overflowing_sub(1).0;
                 self.P.set_NZ(self.X);
                 println!("DEX");
+            }
+
+            0xcc => { //CPY Absolute
+                let address = self.get_address(AdressingType::Absolute);
+                let data = self.memory.read_memory(address);
+                let r = self.Y.overflowing_sub(data);
+                self.P.set_NZ(r.0);
+                self.P.set_C(!r.1);
+                println!("CPY Absolute");
             }
 
             0xcd => { //CMP Absolute
@@ -706,6 +804,16 @@ impl CPU6502 {
                     print!("NOT Branching ");
                 }
                 println!("BNE Relative [{}]", data);
+            }
+
+            0xd5 => { //CMP ZeroPageX
+                let address = self.get_address(AdressingType::ZeroPageX);
+                let data = self.memory.read_memory(address);
+                let r = self.A.overflowing_sub(data);
+                print!("CMP v={:?} ", r);
+                self.P.set_NZ(r.0);
+                self.P.set_C(!r.1);
+                println!("CMP ZeroPageX ({:#04x})", data);
             }
 
             0xd8 => { //CLD Clear Decimal Mode
@@ -743,6 +851,16 @@ impl CPU6502 {
                 println!("CPX Immediate ({:#06x})", data);
             }
 
+            0xe4 => { //CPX ZeroPage
+                let address = self.get_address(AdressingType::ZeroPage);
+                let data = self.memory.read_memory(address);
+                let r = self.X.overflowing_sub(data);
+                print!("CPX v={:?} ", r);
+                self.P.set_NZ(r.0);
+                self.P.set_C(!r.1);
+                println!("CPX ZeroPage ({:#06x})", data);
+            }
+
             0xe8 => { //INX
                 let r = self.X.overflowing_add(1);
                 self.X = r.0;
@@ -752,6 +870,16 @@ impl CPU6502 {
 
             0xea => { //NOP
                 println!("NOP");
+            }
+
+            0xec => { //CPX Absolute
+                let address = self.get_address(AdressingType::Absolute);
+                let data = self.memory.read_memory(address);
+                let r = self.X.overflowing_sub(data);
+                print!("CPX v={:?} ", r);
+                self.P.set_NZ(r.0);
+                self.P.set_C(!r.1);
+                println!("CPX Absolute ({:#06x})", data);
             }
 
             0xf0 => { //BEQ Relative
@@ -1233,10 +1361,10 @@ mod tests{
 
         loop{
             cpu.run_single();
-            println!("CPU: {:?}", cpu);
+            //println!("CPU: {:?}", cpu);
             cnt += 1;
 
-            if cnt > 43000{
+            if cnt > 45000{
                 assert!(false);
             }
         }
