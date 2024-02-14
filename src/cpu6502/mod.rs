@@ -126,6 +126,20 @@ impl CPU6502 {
                 print!("Address=0x{:04x} ", ret);
                 ret
             }
+            AdressingType::ZeroPageX => {
+                let addr = self.memory.read_memory(self.PC).overflowing_add(self.X).0;
+                self.PC += 1;
+                let ret = addr as u16;
+                print!("Address=0x{:04x} ", ret);
+                ret
+            }
+            AdressingType::ZeroPageY => {
+                let addr = self.memory.read_memory(self.PC).overflowing_add(self.Y).0;
+                self.PC += 1;
+                let ret = addr as u16;
+                print!("Address=0x{:04x} ", ret);
+                ret
+            }
             AdressingType::Absolute => {
                 let ret = self.memory.read_memory_word(self.PC);
                 self.PC += 2;
