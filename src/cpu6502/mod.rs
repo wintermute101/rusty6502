@@ -290,7 +290,7 @@ impl CPU6502 {
                 println!("PLP Pop P={:#04x} ADDR={:#06x}", self.P.value, address);
             }
 
-            0x30 => {
+            0x30 => { //BMI Relative
                 let data = self.memory.read_memory(self.PC) as i8;
                 self.PC += 1;
 
@@ -303,6 +303,24 @@ impl CPU6502 {
                     print!("NOT Branching ");
                 }
                 println!("BMI Relative [{}]", data);
+            }
+
+            0x38 => { //SEC
+                self.P.set_C(true);
+                println!("SEC");
+            }
+
+            0x40 => { //RTI
+                self.SP = self.SP.overflowing_add(1).0;
+                let address = 0x0100 | self.SP as u16;
+                let data = self.memory.read_memory(address);
+                self.SP = self.SP.overflowing_add(1).0;
+                self.P.value = (data & 0b1101_1111) | 0b0001_0000; //ignore bit 5 set B
+                let sp = 0x0100 | self.SP as u16;
+                let addr = self.memory.read_memory_word(sp);
+                self.SP = self.SP.overflowing_add(1).0;
+                self.PC = addr;
+                println!("RTI {:#06x}", addr);
             }
 
             0x48 => { //PHA
@@ -343,6 +361,11 @@ impl CPU6502 {
                     print!("NOT Branching ");
                 }
                 println!("BVC Relative [{}]", data);
+            }
+
+            0x58 => { //CLI
+                self.P.set_I(false);
+                println!("CLI");
             }
 
             0x60 => { //RTS
@@ -396,6 +419,11 @@ impl CPU6502 {
                     print!("NOT Branching ");
                 }
                 println!("BVS Relative [{}]", data);
+            }
+
+            0x78 => { //SEI
+                self.P.set_I(true);
+                println!("SEI");
             }
 
             0x85 => { //STA ZeroPage
@@ -455,6 +483,12 @@ impl CPU6502 {
                 println!("BCC Relative [{}]", data);
             }
 
+            0x96 => { //STX ZeroPageY
+                let address = self.get_address(AdressingType::ZeroPageY);
+                self.memory.write_memory(address, self.X);
+                println!("STX ZeroPageY ({:#04x})", self.X);
+            }
+
             0x98 => { //TYA
                 self.A = self.Y;
                 self.P.set_NZ(self.A);
@@ -470,6 +504,12 @@ impl CPU6502 {
             0x9a => {//TXS
                 self.SP = self.X;
                 println!("TXS");
+            }
+
+            0x9d => { //STA AbsoluteX
+                let address = self.get_address(AdressingType::AbsoluteX);
+                self.memory.write_memory(address, self.A);
+                println!("STA AbsoluteX ({:#04x})", self.A);
             }
 
             0xa0 => { //LDY Immediate
@@ -563,6 +603,35 @@ impl CPU6502 {
                 println!("LDA IndirectY ({:#04x})", data);
             }
 
+            0xb4 => { //LDY ZeroPageX
+                let address = self.get_address(AdressingType::ZeroPageX);
+                let data = self.memory.read_memory(address);
+                self.Y = data;
+                self.P.set_NZ(data);
+                println!("LDY ZeroPageX ({:#04x})", data);
+            }
+
+            0xb6 => { //LDX ZeroPageY
+                let address = self.get_address(AdressingType::ZeroPageY);
+                let data = self.memory.read_memory(address);
+                self.X = data;
+                self.P.set_NZ(data);
+                println!("LDX ZeroPageY ({:#04x})", data);
+            }
+
+            0xb8 => { //CLV
+                self.P.set_V(false);
+                println!("CLV");
+            }
+
+            0xb9 => { //LDA AbsoluteY
+                let address = self.get_address(AdressingType::AbsoluteY);
+                let data = self.memory.read_memory(address);
+                self.A = data;
+                self.P.set_NZ(data);
+                println!("LDA AbsoluteY ({:#04x})", data);
+            }
+
             0xba => { //TSX
                 self.X = self.SP;
                 self.P.set_NZ(self.X);
@@ -575,6 +644,14 @@ impl CPU6502 {
                 self.A = data;
                 self.P.set_NZ(data);
                 println!("LDA AbsoluteX ({:#04x})", data);
+            }
+
+            0xbe => { //LDX AbsoluteY
+                let address = self.get_address(AdressingType::AbsoluteY);
+                let data = self.memory.read_memory(address);
+                self.X = data;
+                self.P.set_NZ(data);
+                println!("LDX AbsoluteY ({:#04x})", data);
             }
 
             0xc0 => { //CPY Immediate
@@ -639,6 +716,26 @@ impl CPU6502 {
                 println!("CLD");
             }
 
+            0xd9 => { //CMP AbsoluteY
+                let address = self.get_address(AdressingType::AbsoluteY);
+                let data = self.memory.read_memory(address);
+                let r = self.A.overflowing_sub(data);
+                print!("CMP v={:?} ", r);
+                self.P.set_NZ(r.0);
+                self.P.set_C(!r.1);
+                println!("CMP AbsoluteY ({:#04x})", data);  
+            }
+
+            0xdd => { //CMP AbsoluteX
+                let address = self.get_address(AdressingType::AbsoluteX);
+                let data = self.memory.read_memory(address);
+                let r = self.A.overflowing_sub(data);
+                print!("CMP v={:?} ", r);
+                self.P.set_NZ(r.0);
+                self.P.set_C(!r.1);
+                println!("CMP AbsoluteX ({:#04x})", data);
+            }
+
             0xe0 => { //CPX Immediate
                 let data = self.memory.read_memory(self.PC);
                 self.PC += 1;
@@ -673,6 +770,11 @@ impl CPU6502 {
                     print!("NOT Branching ");
                 }
                 println!("BEQ Relative [{}]", data);
+            }
+
+            0xf8 => { //SED
+                self.P.set_D(true);
+                println!("SED");
             }
 
             0xfe => { //INC AbsoluteX
@@ -1137,7 +1239,7 @@ mod tests{
             println!("CPU: {:?}", cpu);
             cnt += 1;
 
-            if cnt > 41000{
+            if cnt > 43000{
                 assert!(false);
             }
         }
