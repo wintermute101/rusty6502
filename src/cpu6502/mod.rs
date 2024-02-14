@@ -630,7 +630,7 @@ impl CPU6502 {
                 println!("NOP");
             }
 
-            0xf0 => {
+            0xf0 => { //BEQ Relative
                 let data = self.memory.read_memory(self.PC) as i8;
                 self.PC += 1;
 
