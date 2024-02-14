@@ -49,7 +49,7 @@ impl StatusRegister {
     }
 
     fn set_I(&mut self, val: bool){
-        self.value = (self.value & 0b1111_1011) | ((val as u8) << 3);
+        self.value = (self.value & 0b1111_1011) | ((val as u8) << 2);
     }
 }
 
