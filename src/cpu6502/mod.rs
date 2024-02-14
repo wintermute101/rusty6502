@@ -692,6 +692,7 @@ impl CPU6502 {
         };
         println!("INT PC={:#06x} SP={:#04x} INTVEC={:#06x}", self.PC, self.P.value, address);
         self.PC = address;
+        self.P.set_I(true); //Disable Interupts
     }
 }
 
