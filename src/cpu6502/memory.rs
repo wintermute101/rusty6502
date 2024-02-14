@@ -48,6 +48,11 @@ impl Memory {
             0
         }
     }
+
+    pub fn show_stack(&self){
+        let mslicee: [u8; 16] = self.memory[0x01f0 .. 0x0200].try_into().unwrap();
+        println!("{:04x}: {:02x?}\n", 0x01f0, mslicee);
+    }
 }
 
 impl std::fmt::Debug for Memory {
