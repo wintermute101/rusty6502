@@ -482,6 +482,22 @@ impl CPU6502 {
                 println!("LDX Immediate ({:#04x})", data);
             }
 
+            0xa5 => { //LDA ZeroPage
+                let address = self.get_address(AdressingType::ZeroPage);
+                let data = self.memory.read_memory(address);
+                self.A = data;
+                self.P.set_NZ(data);
+                println!("LDA ZeroPage ({:#04x})", data);
+            }
+
+            0xa6 => { //LDX ZeroPage
+                let address = self.get_address(AdressingType::ZeroPage);
+                let data = self.memory.read_memory(address);
+                self.X = data;
+                self.P.set_NZ(data);
+                println!("LDX ZeroPage ({:#04x})", data);
+            }
+
             0xa8 => { //TAY
                 self.Y = self.A;
                 self.P.set_NZ(self.Y);
