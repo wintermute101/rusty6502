@@ -667,6 +667,10 @@ impl CPU6502 {
     }
 
     fn interrupt(&mut self, int: InterruptType){
+        if self.P.get_I() && int == InterruptType::INT{
+            println!("INT while innterrupts are disabled");
+            return;
+        }
         let sp = 0x0100 | self.SP as u16;
         self.SP = self.SP.overflowing_sub(1).0;
         self.memory.write_memory(sp, (self.PC >> 8) as u8);
