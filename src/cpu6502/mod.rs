@@ -33,7 +33,7 @@ impl StatusRegister {
     }
 
     fn set_D(&mut self, val: bool){
-        self.value = (self.value & 0b1111_0111) | ((val as u8) << 4);
+        self.value = (self.value & 0b1111_0111) | ((val as u8) << 3);
     }
 
     fn get_V(&mut self) -> bool{
