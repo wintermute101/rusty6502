@@ -40,7 +40,7 @@ impl Memory {
     }
 
     pub fn read_memory_word(&self, address: u16) -> u16{
-        if let Ok(m) = self.memory[address as usize .. (address+2) as usize].try_into(){
+        if let Ok(m) = self.memory[address as usize .. (address as usize) + 2].try_into(){
             u16::from_le_bytes(m)
         }
         else{
