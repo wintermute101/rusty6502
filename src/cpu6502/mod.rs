@@ -182,9 +182,6 @@ impl CPU6502 {
                 print!(" Address={:#06x}", ret.0);
                 ret.0
             }
-            _ => {
-                todo!("Addressing Type {:?} ", adrtype);
-            }
         }
     }
 
