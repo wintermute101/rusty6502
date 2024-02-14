@@ -35,6 +35,22 @@ impl StatusRegister {
     fn set_D(&mut self, val: bool){
         self.value = (self.value & 0b1111_0111) | ((val as u8) << 4);
     }
+
+    fn get_V(&mut self) -> bool{
+        self.value & 0b0100_0000 != 0
+    }
+
+    fn set_V(&mut self, val: bool){
+        self.value = (self.value & 0b1011_1111) | ((val as u8) << 6);
+    }
+
+    fn get_I(&mut self) -> bool{
+        self.value & 0b0000_0100 != 0
+    }
+
+    fn set_I(&mut self, val: bool){
+        self.value = (self.value & 0b1111_1011) | ((val as u8) << 3);
+    }
 }
 
 impl std::fmt::Debug for StatusRegister{
@@ -56,6 +72,13 @@ enum AdressingType{
     IndirectY,
 }
 
+#[derive(PartialEq)]
+enum InterruptType {
+    Normal,
+    NMI,
+    BRK,
+}
+
 #[allow(non_snake_case)]
 pub struct CPU6502{
     A:  u8,
@@ -64,6 +87,8 @@ pub struct CPU6502{
     PC: u16,
     SP:  u8,
     P:  StatusRegister,
+
+    prev_PC: u16,
 
     memory: Memory,
 
@@ -80,7 +105,7 @@ impl std::fmt::Debug for CPU6502 {
 
 impl CPU6502 {
     pub fn new(mem: Memory) -> Self{
-        CPU6502 { A: 0, X: 0, Y: 0, PC: 0, SP: 0xff, P: StatusRegister { value: 0 }, memory: mem }
+        CPU6502 { A: 0, X: 0, Y: 0, PC: 0, SP: 0xff, P: StatusRegister { value: 0 }, prev_PC: 0, memory: mem }
     }
 
     pub fn reset(&mut self) {
@@ -91,7 +116,7 @@ impl CPU6502 {
     pub fn reset_at(&mut self, start_address: u16) {
         self.PC = start_address;
     }
-    
+
     fn get_address(&mut self, adrtype: AdressingType) -> u16{
         match adrtype {
             AdressingType::ZeroPage => {
@@ -156,8 +181,9 @@ impl CPU6502 {
 
         match ins {
             0x00 => { //BRK
+                self.PC += 1;
+                self.interrupt(InterruptType::BRK);
                 println!("BRK");
-                todo!("BRK");
             }
 
             0x01 => { //ORA IndirectX
@@ -188,14 +214,13 @@ impl CPU6502 {
 
             0x08 => { //PHP
                 let address = 0x0100 | self.SP as u16;
-                let data = self.memory.read_memory(address);
-                self.memory.write_memory(address, self.P.value);
+                self.memory.write_memory(address, self.P.value | 0b0011_0000); //push brk and ignored as 1
                 let r = self.SP.overflowing_sub(1);
                 self.SP = r.0;
                 if r.1{
                     println!("Stack Overflow!");
                 }
-                println!("PHP Pushed P={:#04x} ADDR={:#06x}", data, address);
+                println!("PHP Pushed P={:#04x} ADDR={:#06x}", self.P.value, address);
             }
 
             0x09 => { //ORA Immediate
@@ -228,14 +253,27 @@ impl CPU6502 {
 
             0x20 => { //JSR
                 let address = self.get_address(AdressingType::Absolute);
+                let pc = self.PC.overflowing_sub(1).0; //need to push PC+2 not 3 RTS will add 1
                 let sp = 0x0100 | self.SP as u16;
                 self.SP = self.SP.overflowing_sub(1).0;
-                self.memory.write_memory(sp, (self.PC >> 8) as u8);
+                self.memory.write_memory(sp, (pc >> 8) as u8);
                 let sp = 0x0100 | self.SP as u16;
                 self.SP = self.SP.overflowing_sub(1).0;
-                self.memory.write_memory(sp, (self.PC & 0x0ff) as u8);
+                self.memory.write_memory(sp, (pc & 0x0ff) as u8);
                 println!("JSR {:#06x} PC={:#06x}", address, self.PC);
                 self.PC = address;
+            }
+
+            0x28 => { //PLP
+                let r = self.SP.overflowing_add(1);
+                self.SP = r.0;
+                if r.1{
+                    println!("Stack Overflow!");
+                }
+                let address = 0x0100 | self.SP as u16;
+                let data = self.memory.read_memory(address);
+                self.P.value = data & 0b1100_1111; //ignore B and bit 5
+                println!("PLP Pop P={:#04x} ADDR={:#06x}", self.P.value, address);
             }
 
             0x30 => {
@@ -279,10 +317,24 @@ impl CPU6502 {
                 println!("JMP Absolute");
             }
 
+            0x50 => { //BVC
+                let data = self.memory.read_memory(self.PC) as i8;
+                self.PC += 1;
+                if !self.P.get_V(){
+                    let r = (self.PC as i16).overflowing_add(data as i16);
+                    print!("Branch to PC={:#06x} ", r.0);
+                    self.PC = r.0 as u16;
+                }
+                else {
+                    print!("NOT Branching ");
+                }
+                println!("BVC Relative [{}]", data);
+            }
+
             0x60 => { //RTS
                 self.SP = self.SP.overflowing_add(1).0;
                 let sp = 0x0100 | self.SP as u16;
-                let addr = self.memory.read_memory_word(sp);
+                let addr = self.memory.read_memory_word(sp).overflowing_add(1).0;
                 self.SP = self.SP.overflowing_add(1).0;
                 self.PC = addr;
                 println!("RTS {:#06x}", addr);
@@ -314,13 +366,34 @@ impl CPU6502 {
             0x6c => { //JMP Indirect
                 let address = self.get_address(AdressingType::Indirect);
                 self.PC = address;
-                println!("JMP Indirect");
+                println!("JMP Indirect PC={:#06x} ", address);
+            }
+
+            0x70 => { //BVS
+                let data = self.memory.read_memory(self.PC) as i8;
+                self.PC += 1;
+                
+                if self.P.get_V(){
+                    let r = (self.PC as i16).overflowing_add(data as i16);
+                    print!("Branch to PC={:#06x} ", r.0);
+                    self.PC = r.0 as u16;
+                }
+                else {
+                    print!("NOT Branching ");
+                }
+                println!("BVS Relative [{}]", data);
             }
 
             0x85 => { //STA ZeroPage
                 let address = self.get_address(AdressingType::ZeroPage);
                 self.memory.write_memory(address, self.A);
                 println!("STA ZeroPage ({:#04x})", self.A);
+            }
+
+            0x86 => { //STX ZeroPage
+                let address = self.get_address(AdressingType::ZeroPage);
+                self.memory.write_memory(address, self.X);
+                println!("STX ZeroPage ({:#04x})", self.X);
             }
 
             0x88 => { //DEY
@@ -460,6 +533,20 @@ impl CPU6502 {
                 println!("LDA IndirectY ({:#04x})", data);
             }
 
+            0xba => { //TSX
+                self.X = self.SP;
+                self.P.set_NZ(self.X);
+                println!("TSX({:#04x})", self.X);
+            }
+
+            0xbd => { //LDA AbsoluteX
+                let address = self.get_address(AdressingType::AbsoluteX);
+                let data = self.memory.read_memory(address);
+                self.A = data;
+                self.P.set_NZ(data);
+                println!("LDA AbsoluteX ({:#04x})", data);
+            }
+
             0xc0 => { //CPY Immediate
                 let data = self.memory.read_memory(self.PC);
                 self.PC += 1;
@@ -495,7 +582,6 @@ impl CPU6502 {
             0xcd => { //CMP Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 let data = self.memory.read_memory(address);
-                self.PC += 1;
                 let r = self.A.overflowing_sub(data);
                 print!("CMP v={:?} ", r);
                 self.P.set_NZ(r.0);
@@ -527,16 +613,16 @@ impl CPU6502 {
                 let data = self.memory.read_memory(self.PC);
                 self.PC += 1;
                 let r = self.X.overflowing_sub(data);
+                print!("CPX v={:?} ", r);
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                println!("CPX Immediate");
+                println!("CPX Immediate ({:#06x})", data);
             }
 
             0xe8 => { //INX
                 let r = self.X.overflowing_add(1);
                 self.X = r.0;
                 self.P.set_NZ(r.0);
-                self.P.set_C(r.1);
                 println!("INX");
             }
 
@@ -572,6 +658,40 @@ impl CPU6502 {
                 todo!("INS={:#04x}", ins);
             }
         }
+
+        if self.PC == self.prev_PC{
+            println!("{:?}", self);
+            panic!("LOOP Detected PC={:#06x}", self.PC);
+        }
+        self.prev_PC = self.PC;
+    }
+
+    fn interrupt(&mut self, int: InterruptType){
+        let sp = 0x0100 | self.SP as u16;
+        self.SP = self.SP.overflowing_sub(1).0;
+        self.memory.write_memory(sp, (self.PC >> 8) as u8);
+        let sp = 0x0100 | self.SP as u16;
+        self.SP = self.SP.overflowing_sub(1).0;
+        self.memory.write_memory(sp, (self.PC & 0x0ff) as u8);
+        let sp = 0x0100 | self.SP as u16;
+        self.SP = self.SP.overflowing_sub(1).0;
+        if int == InterruptType::BRK{
+            //print!(" Write P={:#04x} on stack ({:#06x})", self.P.value | 0b0011_0000, sp);
+            self.memory.write_memory(sp, self.P.value | 0b0011_0000); //Set Interrupt flag
+        }
+        else{
+            self.memory.write_memory(sp, self.P.value | 0b0010_0000); //Set Interrupt flag
+        }
+        let address = match int {
+            InterruptType::NMI | InterruptType::BRK => {
+                self.memory.read_memory_word(0xfffe) // NMI int vec
+            }
+            InterruptType::Normal => {
+                self.memory.read_memory_word(0xfffa)
+            }
+        };
+        println!("INT PC={:#06x} SP={:#04x} INTVEC={:#06x}", self.PC, self.P.value, address);
+        self.PC = address;
     }
 }
 
@@ -979,7 +1099,7 @@ mod tests{
 
         loop{
             cpu.run_single();
-            //println!("CPU: {:?}", cpu);
+            println!("CPU: {:?}", cpu);
             cnt += 1;
 
             if cnt > 41000{
