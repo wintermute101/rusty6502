@@ -498,16 +498,16 @@ impl CPU6502 {
                 println!("STA IndirectY ({:#04x})", self.A);
             }
 
-            0x94 => { //STY ZeroPage
-                let address = self.get_address(AdressingType::ZeroPage);
+            0x94 => { //STY ZeroPageX
+                let address = self.get_address(AdressingType::ZeroPageX);
                 self.memory.write_memory(address, self.Y);
-                println!("STY ZeroPage ({:#04x})", self.A);
+                println!("STY ZeroPageX ({:#04x})", self.A);
             }
 
-            0x95 => { //STA ZeroPage
-                let address = self.get_address(AdressingType::ZeroPage);
+            0x95 => { //STA ZeroPageX
+                let address = self.get_address(AdressingType::ZeroPageX);
                 self.memory.write_memory(address, self.A);
-                println!("STA ZeroPage ({:#04x})", self.A);
+                println!("STA ZeroPageX ({:#04x})", self.A);
             }
 
             0x96 => { //STX ZeroPageY
