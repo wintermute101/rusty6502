@@ -93,9 +93,7 @@ pub struct CPU6502{
     P:  StatusRegister,
 
     prev_PC: u16,
-
     memory: Memory,
-
 }
 
 impl std::fmt::Debug for CPU6502 {
@@ -119,6 +117,28 @@ impl CPU6502 {
 
     pub fn reset_at(&mut self, start_address: u16) {
         self.PC = start_address;
+    }
+
+    fn adc(&mut self, data: u8){
+        if self.P.get_D(){
+            todo!("Decimal!");
+        }
+        let r = self.A.overflowing_add(data + self.P.get_C() as u8);
+        self.A = r.0;
+        self.P.set_NZ(r.0);
+        self.P.set_C(r.1);
+        println!("ADC ({:#04x} => {:#04x})", data, self.A);
+    }
+
+    fn sbc(&mut self, data: u8){
+        if self.P.get_D(){
+            todo!("Decimal!");
+        }
+        let r = self.A.overflowing_sub(data + self.P.get_C() as u8);
+        self.A = r.0;
+        self.P.set_NZ(r.0);
+        self.P.set_C(r.1);
+        println!("SBC ({:#04x} => {:#04x})", data, self.A);
     }
 
     fn get_address(&mut self, adrtype: AdressingType) -> u16{
@@ -695,6 +715,18 @@ impl CPU6502 {
                 println!("RTS {:#06x}", addr);
             }
 
+            0x61 => { //ADC IndirectX
+                let address = self.get_address(AdressingType::IndirectX);
+                let data = self.memory.read_memory(address);
+                self.adc(data);
+            }
+
+            0x65 => { //ADC ZeroPage
+                let address = self.get_address(AdressingType::ZeroPage);
+                let data = self.memory.read_memory(address);
+                self.adc(data);
+            }
+
             0x66 => { //ROR ZeroPage
                 let address = self.get_address(AdressingType::ZeroPage);
                 let mut data = self.memory.read_memory(address);
@@ -720,16 +752,9 @@ impl CPU6502 {
             }
 
             0x69 => { //ADC Immediate
-                if self.P.get_D(){
-                    todo!("Decimal!");
-                }
                 let data = self.memory.read_memory(self.PC);
                 self.PC += 1;
-                let r = self.A.overflowing_add(data + self.P.get_C() as u8);
-                self.A = r.0;
-                self.P.set_NZ(r.0);
-                self.P.set_C(r.1);
-                println!("ADC Immediate ({:#04x} => {:#04x})", data, self.A);
+                self.adc(data);
             }
 
             0x6a => { //ROR Accumulator
@@ -745,6 +770,12 @@ impl CPU6502 {
                 let address = self.get_address(AdressingType::Indirect);
                 self.PC = address;
                 println!("JMP Indirect PC={:#06x} ", address);
+            }
+
+            0x6d => { //ADC Absolute
+                let address = self.get_address(AdressingType::Absolute);
+                let data = self.memory.read_memory(address);
+                self.adc(data);
             }
 
             0x6e => { //ROR Absolute
@@ -773,6 +804,18 @@ impl CPU6502 {
                 println!("BVS Relative [{}]", data);
             }
 
+            0x71 => { //ADC IndirectY
+                let address = self.get_address(AdressingType::IndirectY);
+                let data = self.memory.read_memory(address);
+                self.adc(data);
+            }
+
+            0x75 => { //ADC ZeroPageX
+                let address = self.get_address(AdressingType::ZeroPageX);
+                let data = self.memory.read_memory(address);
+                self.adc(data);
+            }
+
             0x76 => { //ROR ZeroPageX
                 let address = self.get_address(AdressingType::ZeroPageX);
                 let mut data = self.memory.read_memory(address);
@@ -787,6 +830,18 @@ impl CPU6502 {
             0x78 => { //SEI
                 self.P.set_I(true);
                 println!("SEI");
+            }
+
+            0x79 => { //ADC AbsoluteY
+                let address = self.get_address(AdressingType::AbsoluteY);
+                let data = self.memory.read_memory(address);
+                self.adc(data);
+            }
+
+            0x7d => { //ADC AbsoluteX
+                let address = self.get_address(AdressingType::AbsoluteX);
+                let data = self.memory.read_memory(address);
+                self.adc(data);
             }
 
             0x7e => { //ROR AbsoluteX
