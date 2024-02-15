@@ -50,7 +50,28 @@ impl Memory {
 
     pub fn show_stack(&self){
         let mslicee: [u8; 16] = self.memory[0x01f0 .. 0x0200].try_into().unwrap();
-        println!("{:04x}: {:02x?}\n", 0x01f0, mslicee);
+        println!("{:04x}: {:02x?}", 0x01f0, mslicee);
+    }
+
+    pub fn show_zero_page(&self){
+        let mut last = [0xff; 16];
+        let mut lasti = 0;
+
+        for i in 0..256/16{
+            let mslicee: [u8; 16] = self.memory[i*16 .. (i+1)*16].try_into().unwrap();
+
+            if mslicee != last{
+                if lasti+1 != i && i != 0{
+                    println!("*");
+                }
+                println!("{:04x}: {:02x?}", i*16, mslicee);
+                lasti = i;
+            }
+            else if i == 256/16-1 {
+                println!("*\n{:04x}", i*16);
+            }
+            last = mslicee;
+        }
     }
 }
 
@@ -65,7 +86,7 @@ impl std::fmt::Debug for Memory {
             let mslicee: [u8; 16] = self.memory[i*16 .. (i+1)*16].try_into().unwrap();
 
             if mslicee != last{
-                if lasti != i{
+                if lasti+1 != i && i != 0{
                     fmt.write_str(&format!("*\n"))?;
                 }
                 fmt.write_str(&format!("{:04x}: {:02x?}\n", i*16, mslicee))?;
