@@ -123,10 +123,24 @@ impl CPU6502 {
         if self.P.get_D(){
             todo!("Decimal!");
         }
+        let same_sign = self.A & 0b1000_0000 == data   & 0b1000_0000;
         let r = self.A.overflowing_add(data + self.P.get_C() as u8);
         self.A = r.0;
         self.P.set_NZ(r.0);
-        self.P.set_C(r.1);
+        if r.1{
+            if same_sign{
+                self.P.set_V(true);
+                self.P.set_C(false);
+            }
+            else{
+                self.P.set_C(true);
+                self.P.set_V(false);
+            }
+        }
+        else {
+            self.P.set_C(false);
+            self.P.set_V(false);
+        }
         println!("ADC ({:#04x} => {:#04x})", data, self.A);
     }
 
@@ -134,10 +148,27 @@ impl CPU6502 {
         if self.P.get_D(){
             todo!("Decimal!");
         }
-        let r = self.A.overflowing_sub(data + self.P.get_C() as u8);
-        self.A = r.0;
-        self.P.set_NZ(r.0);
-        self.P.set_C(r.1);
+        let same_sign = self.A & 0b1000_0000 == data   & 0b1000_0000;
+        let r1 = self.A.overflowing_sub(data);
+        let r2 = r1.0.overflowing_sub(!self.P.get_C() as u8);
+        self.A = r2.0;
+        self.P.set_NZ(r2.0);
+
+        if r1.1 || r2.1{
+            if !same_sign{
+                self.P.set_V(true);
+                self.P.set_C(false);
+            }
+            else{
+                self.P.set_C(true);
+                self.P.set_V(false);
+            }
+        }
+        else {
+            self.P.set_C(false);
+            self.P.set_V(false);
+        }
+
         println!("SBC ({:#04x} => {:#04x})", data, self.A);
     }
 
@@ -1339,6 +1370,12 @@ impl CPU6502 {
                 println!("CPX Immediate ({:#06x})", data);
             }
 
+            0xe1 => { //SBC IndirectX
+                let address = self.get_address(AdressingType::IndirectX);
+                let data = self.memory.read_memory(address);
+                self.sbc(data);
+            }
+
             0xe4 => { //CPX ZeroPage
                 let address = self.get_address(AdressingType::ZeroPage);
                 let data = self.memory.read_memory(address);
@@ -1347,6 +1384,12 @@ impl CPU6502 {
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
                 println!("CPX ZeroPage ({:#06x})", data);
+            }
+
+            0xe5 => { //SBC ZeroPage
+                let address = self.get_address(AdressingType::ZeroPage);
+                let data = self.memory.read_memory(address);
+                self.sbc(data);
             }
 
             0xe6 => { //INC ZeroPage
@@ -1363,6 +1406,12 @@ impl CPU6502 {
                 self.X = r.0;
                 self.P.set_NZ(r.0);
                 println!("INX");
+            }
+
+            0xe9 => { //SBC ZeroPage
+                let data = self.memory.read_memory(self.PC);
+                self.PC += 1;
+                self.sbc(data);
             }
 
             0xea => { //NOP
@@ -1403,6 +1452,18 @@ impl CPU6502 {
                 println!("BEQ Relative [{}]", data);
             }
 
+            0xf1 => { //SBC IndirectY
+                let address = self.get_address(AdressingType::IndirectY);
+                let data = self.memory.read_memory(address);
+                self.sbc(data);
+            }
+
+            0xf5 => { //SBC ZeroPageX
+                let address = self.get_address(AdressingType::ZeroPageX);
+                let data = self.memory.read_memory(address);
+                self.sbc(data);
+            }
+
             0xf6 => { //INC ZeroPageX
                 let address = self.get_address(AdressingType::ZeroPageX);
                 let mut data = self.memory.read_memory(address);
@@ -1415,6 +1476,18 @@ impl CPU6502 {
             0xf8 => { //SED
                 self.P.set_D(true);
                 println!("SED");
+            }
+
+            0xf9 => { //SBC AbsoluteY
+                let address = self.get_address(AdressingType::AbsoluteY);
+                let data = self.memory.read_memory(address);
+                self.sbc(data);
+            }
+
+            0xfd => { //SBC AbsoluteX
+                let address = self.get_address(AdressingType::AbsoluteX);
+                let data = self.memory.read_memory(address);
+                self.sbc(data);
             }
 
             0xfe => { //INC AbsoluteX
