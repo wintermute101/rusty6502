@@ -94,6 +94,8 @@ pub struct CPU6502{
 
     prev_PC: u16,
     memory: Memory,
+
+    trace: Option<Vec<String>>,
 }
 
 impl std::fmt::Debug for CPU6502 {
@@ -107,7 +109,11 @@ impl std::fmt::Debug for CPU6502 {
 
 impl CPU6502 {
     pub fn new(mem: Memory) -> Self{
-        CPU6502 { A: 0, X: 0, Y: 0, PC: 0, SP: 0xff, P: StatusRegister { value: 0 }, prev_PC: 0, memory: mem }
+        CPU6502 { A: 0, X: 0, Y: 0, PC: 0, SP: 0xff, P: StatusRegister { value: 0 }, prev_PC: 0, memory: mem, trace: None }
+    }
+
+    pub fn enable_trace(&mut self, lines_buff: usize){
+        self.trace = Some(Vec::with_capacity(lines_buff));
     }
 
     pub fn reset(&mut self) {
@@ -1640,7 +1646,7 @@ mod tests{
 
     }
 
-        #[test]
+    #[test]
     #[allow(non_snake_case)]
     fn test_BNE2(){
         let mut mem = Memory::new(4*1024);
