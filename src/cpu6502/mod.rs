@@ -1403,6 +1403,12 @@ impl CPU6502 {
                 println!("CPX Absolute ({:#06x})", data);
             }
 
+            0xed => { //SBC Absolute
+                let address = self.get_address(AdressingType::Absolute);
+                let data = self.memory.read_memory(address);
+                self.sbc(data);
+            }
+
             0xee => { //INC Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 let mut data = self.memory.read_memory(address);
