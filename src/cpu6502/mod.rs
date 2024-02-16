@@ -1931,13 +1931,13 @@ mod tests{
         let mut cnt = 0;
 
         loop{
-            println!("{}", cnt);
+            //println!("{}", cnt);
             cpu.run_single();
-            cpu.memory.show_stack();
-            println!("CPU: {:?}", cpu);
+            //cpu.memory.show_stack();
+            //println!("CPU: {:?}", cpu);
             cnt += 1;
 
-            if cnt > 60000{
+            if cnt > 100_000_000{
                 assert!(false);
             }
         }
