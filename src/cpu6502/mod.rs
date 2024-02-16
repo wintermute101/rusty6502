@@ -119,28 +119,22 @@ impl CPU6502 {
         self.PC = start_address;
     }
 
-    fn adc(&mut self, data: u8){
+    fn adc(&mut self, value: u8){
         if self.P.get_D(){
             todo!("Decimal!");
         }
-        let same_sign = self.A & 0b1000_0000 == data   & 0b1000_0000;
-        let r = self.A.overflowing_add(data + self.P.get_C() as u8);
-        self.A = r.0;
-        self.P.set_NZ(r.0);
-        if r.1{
-            if same_sign{
-                self.P.set_V(true);
-                self.P.set_C(false);
-            }
-            else{
-                self.P.set_C(true);
-                self.P.set_V(false);
-            }
-        }
-        else {
-            self.P.set_C(false);
-            self.P.set_V(false);
-        }
+
+        let data = value as u16 + self.A as u16 + self.P.get_C() as u16;
+
+        let a = value & 0x80 != 0;
+        let b = self.A & 0x80 != 0;
+        let c = data as u8 & 0x80 != 0;
+
+        self.P.set_C(data > 0xff);
+        self.P.set_NZ(data as u8);
+        self.P.set_V(!a & !b & c | a & b & !c);
+        self.A = data as u8;
+
         println!("ADC ({:#04x} => {:#04x})", data, self.A);
     }
 
@@ -148,26 +142,7 @@ impl CPU6502 {
         if self.P.get_D(){
             todo!("Decimal!");
         }
-        let same_sign = self.A & 0b1000_0000 == data   & 0b1000_0000;
-        let r1 = self.A.overflowing_sub(data);
-        let r2 = r1.0.overflowing_sub(!self.P.get_C() as u8);
-        self.A = r2.0;
-        self.P.set_NZ(r2.0);
-
-        if r1.1 || r2.1{
-            if !same_sign{
-                self.P.set_V(true);
-                self.P.set_C(false);
-            }
-            else{
-                self.P.set_C(true);
-                self.P.set_V(false);
-            }
-        }
-        else {
-            self.P.set_C(false);
-            self.P.set_V(false);
-        }
+        self.adc(!data);
 
         println!("SBC ({:#04x} => {:#04x})", data, self.A);
     }
