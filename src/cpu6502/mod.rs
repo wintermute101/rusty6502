@@ -1,5 +1,7 @@
 mod memory;
 pub use memory::Memory;
+use std::collections::VecDeque;
+use std::error::Error;
 
 struct StatusRegister{
     value: u8,
@@ -76,6 +78,27 @@ enum AdressingType{
     IndirectY,
 }
 
+#[derive(Debug)]
+pub struct CpuError{
+    error_string: String,
+}
+
+impl CpuError {
+    fn new(error: &str) -> Self{
+        CpuError{error_string: error.to_owned()}
+    }
+}
+
+impl std::fmt::Display for CpuError {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error>{
+        fmt.write_str("")
+    }
+}
+
+impl Error for CpuError {
+
+}
+
 #[derive(PartialEq)]
 enum InterruptType {
     INT,
@@ -95,7 +118,8 @@ pub struct CPU6502{
     prev_PC: u16,
     memory: Memory,
 
-    trace: Option<Vec<String>>,
+    trace_line_limit : usize,
+    trace: Option<VecDeque<String>>,
 }
 
 impl std::fmt::Debug for CPU6502 {
@@ -109,11 +133,12 @@ impl std::fmt::Debug for CPU6502 {
 
 impl CPU6502 {
     pub fn new(mem: Memory) -> Self{
-        CPU6502 { A: 0, X: 0, Y: 0, PC: 0, SP: 0xff, P: StatusRegister { value: 0 }, prev_PC: 0, memory: mem, trace: None }
+        CPU6502 { A: 0, X: 0, Y: 0, PC: 0, SP: 0xff, P: StatusRegister { value: 0 }, prev_PC: 0, memory: mem, trace: None, trace_line_limit: 0 }
     }
 
-    pub fn enable_trace(&mut self, lines_buff: usize){
-        self.trace = Some(Vec::with_capacity(lines_buff));
+    pub fn enable_trace(&mut self, trace_line_limit: usize){
+        self.trace = Some(VecDeque::with_capacity(trace_line_limit));
+        self.trace_line_limit = trace_line_limit;
     }
 
     pub fn reset(&mut self) {
@@ -127,6 +152,8 @@ impl CPU6502 {
 
     fn adc(&mut self, value: u8){
         if self.P.get_D(){
+            self.add_trace("ADC\n".to_owned());
+            self.show_cpu_debug();
             todo!("Decimal!");
         }
 
@@ -141,16 +168,45 @@ impl CPU6502 {
         self.P.set_V(!a & !b & c | a & b & !c);
         self.A = data as u8;
 
-        println!("ADC ({:#04x} => {:#04x})", data, self.A);
+        self.add_trace(format!("ADC ({:#04x} => {:#04x})", data, self.A));
     }
 
     fn sbc(&mut self, data: u8){
         if self.P.get_D(){
+            self.add_trace("SBC\n".to_owned());
+            self.show_cpu_debug();
             todo!("Decimal!");
         }
         self.adc(!data);
 
-        println!("SBC ({:#04x} => {:#04x})", data, self.A);
+        self.add_trace(format!("SBC ({:#04x} => {:#04x})", data, self.A));
+    }
+
+    fn add_trace(&mut self, string: String){
+        if let Some(buf) = self.trace.as_mut(){
+            if buf.len() == self.trace_line_limit{
+                buf.pop_front();
+            }
+            buf.push_back(string);
+        }
+    }
+
+    pub fn show_trace(&self){
+        if let Some(buf) = self.trace.as_ref(){
+            println!("****  Trace   ****");
+            for i in buf{
+                print!("{}", i);
+            }
+        }
+    }
+
+    pub fn show_cpu_debug(&self){
+            self.show_trace();
+            println!("{:?}", self);
+            println!("**** ZeroPage ****");
+            self.memory.show_zero_page();
+            println!("****  Stack   ****");
+            self.memory.show_stack();
     }
 
     fn get_address(&mut self, adrtype: AdressingType) -> u16{
@@ -159,78 +215,78 @@ impl CPU6502 {
                 let addr = self.memory.read_memory(self.PC);
                 self.PC += 1;
                 let ret = addr as u16;
-                print!("Address=0x{:04x} ", ret);
+                self.add_trace(format!("Address=0x{:04x} ", ret));
                 ret
             }
             AdressingType::ZeroPageX => {
                 let addr = self.memory.read_memory(self.PC).overflowing_add(self.X).0;
                 self.PC += 1;
                 let ret = addr as u16;
-                print!("Address=0x{:04x} ", ret);
+                self.add_trace(format!("Address=0x{:04x} ", ret));
                 ret
             }
             AdressingType::ZeroPageY => {
                 let addr = self.memory.read_memory(self.PC).overflowing_add(self.Y).0;
                 self.PC += 1;
                 let ret = addr as u16;
-                print!("Address=0x{:04x} ", ret);
+                self.add_trace(format!("Address=0x{:04x} ", ret));
                 ret
             }
             AdressingType::Absolute => {
                 let ret = self.memory.read_memory_word(self.PC);
                 self.PC += 2;
-                print!("Address={:#06x} ", ret as u16);
+                self.add_trace(format!("Address={:#06x} ", ret as u16));
                 ret
             }
             AdressingType::AbsoluteX => {
                 let ret = self.memory.read_memory_word(self.PC).overflowing_add(self.X as u16).0;
                 self.PC += 2;
-                print!("Address={:#06x} ", ret as u16);
+                self.add_trace(format!("Address={:#06x} ", ret as u16));
                 ret
             }
             AdressingType::AbsoluteY => {
                 let ret = self.memory.read_memory_word(self.PC).overflowing_add(self.Y as u16).0;
                 self.PC += 2;
-                print!("Address={:#06x} ", ret as u16);
+                self.add_trace(format!("Address={:#06x} ", ret as u16));
                 ret
             }
             AdressingType::Indirect => {
                 let addr1 = self.memory.read_memory_word(self.PC);
                 self.PC += 2;
-                print!("Address1={:#06x}", addr1 as u16);
+                self.add_trace(format!("Address1={:#06x}", addr1 as u16));
                 let ret = self.memory.read_memory_word(addr1);
-                print!(" Address={:#06x} ", ret as u16);
+                self.add_trace(format!(" Address={:#06x} ", ret as u16));
                 ret
             }
             AdressingType::IndirectX => {
                 let addr1 = self.memory.read_memory(self.PC).overflowing_add(self.X.into()).0;
                 self.PC += 1;
-                print!("Address1={:#06x}", addr1 as u16);
+                self.add_trace(format!("Address1={:#06x}", addr1 as u16));
                 let ret = self.memory.read_memory_word(addr1 as u16);
-                print!(" Address={:#06x} ", ret as u16);
+                self.add_trace(format!(" Address={:#06x} ", ret as u16));
                 ret
             }
             AdressingType::IndirectY => {
                 let addr1 = self.memory.read_memory(self.PC);
                 self.PC += 1;
-                print!("Address1={:#06x}", addr1 as u16);
+                self.add_trace(format!("Address1={:#06x}", addr1 as u16));
                 let ret = self.memory.read_memory_word(addr1 as u16).overflowing_add(self.Y as u16);
-                print!(" Address={:#06x}", ret.0);
+                self.add_trace(format!(" Address={:#06x}", ret.0));
                 ret.0
             }
         }
     }
 
-    pub fn run_single(&mut self){
+    pub fn run_single(&mut self) -> Result<(), CpuError>{
         let ins = self.memory.read_memory(self.PC);
-        print!("Running INS={:#04x} PC={:#06x} ", ins, self.PC);
+        self.add_trace(format!("Running INS={:#04x} PC={:#06x} ", ins, self.PC));
         self.PC += 1;
 
         match ins {
             0x00 => { //BRK
                 self.PC += 1;
                 self.interrupt(InterruptType::BRK);
-                println!("BRK");
+                self.add_trace(format!("BRK\n"));
             }
 
             0x01 => { //ORA IndirectX
@@ -238,7 +294,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A |= data;
                 self.P.set_NZ(self.A);
-                println!("ORA IndirectX");
+                self.add_trace(format!("ORA IndirectX\n"));
             }
 
             0x05 => { //ORA ZeroPage
@@ -246,7 +302,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A |= data;
                 self.P.set_NZ(self.A);
-                println!("ORA ZeroPage");
+                self.add_trace(format!("ORA ZeroPage\n"));
             }
 
             0x06 => { //ASL ZeroPage
@@ -256,7 +312,7 @@ impl CPU6502 {
                 data = data << 1;
                 self.P.set_NZ(data);
                 self.memory.write_memory(address, data);
-                println!("ASL ZeroPage");
+                self.add_trace(format!("ASL ZeroPage\n"));
             }
 
             0x08 => { //PHP
@@ -265,9 +321,9 @@ impl CPU6502 {
                 let r = self.SP.overflowing_sub(1);
                 self.SP = r.0;
                 if r.1{
-                    println!("Stack Overflow!");
+                    self.add_trace(format!("Stack Overflow!"));
                 }
-                println!("PHP Pushed P={:#04x} ADDR={:#06x}", self.P.value, address);
+                self.add_trace(format!("PHP Pushed P={:#04x} ADDR={:#06x}\n", self.P.value, address));
             }
 
             0x09 => { //ORA Immediate
@@ -275,7 +331,7 @@ impl CPU6502 {
                 self.PC += 1;
                 self.A |= data;
                 self.P.set_NZ(self.A);
-                println!("ORA Immediate");
+                self.add_trace(format!("ORA Immediate\n"));
             }
 
             0x0a => { //ASL Accumulator
@@ -284,7 +340,7 @@ impl CPU6502 {
                 data = data << 1;
                 self.P.set_NZ(data);
                 self.A = data;
-                println!("ASL Accumulator");
+                self.add_trace(format!("ASL Accumulator\n"));
             }
 
             0x0d => { //ORA Absolute
@@ -292,7 +348,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A |= data;
                 self.P.set_NZ(self.A);
-                println!("ORA Absolute");
+                self.add_trace(format!("ORA Absolute\n"));
             }
 
             0x0e => { //ASL Absolute
@@ -302,7 +358,7 @@ impl CPU6502 {
                 data = data << 1;
                 self.P.set_NZ(data);
                 self.memory.write_memory(address, data);
-                println!("ASL Absolute");
+                self.add_trace(format!("ASL Absolute\n"));
             }
 
             0x10 => { //BPL
@@ -311,13 +367,13 @@ impl CPU6502 {
                 
                 if !self.P.get_N(){
                     let r = (self.PC as i16).overflowing_add(data as i16);
-                    print!("Branch to PC={:#06x} ", r.0);
+                    self.add_trace(format!("Branch to PC={:#06x} ", r.0));
                     self.PC = r.0 as u16;
                 }
                 else {
-                    print!("NOT Branching ");
+                    self.add_trace(format!("NOT Branching "));
                 }
-                println!("BPL Relative [{}]", data);
+                self.add_trace(format!("BPL Relative [{}]\n", data));
             }
 
             0x11 => { //ORA AbsoluteX
@@ -325,7 +381,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A |= data;
                 self.P.set_NZ(self.A);
-                println!("ORA IndirectY");
+                self.add_trace(format!("ORA IndirectY\n"));
             }
 
             0x15 => { //ORA ZeroPageX
@@ -333,7 +389,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A |= data;
                 self.P.set_NZ(self.A);
-                println!("ORA ZeroPageX");
+                self.add_trace(format!("ORA ZeroPageX\n"));
             }
 
             0x16 => { //ASL ZeroPageX
@@ -343,12 +399,12 @@ impl CPU6502 {
                 data = data << 1;
                 self.P.set_NZ(data);
                 self.memory.write_memory(address, data);
-                println!("ASL ZeroPageX");
+                self.add_trace(format!("ASL ZeroPageX\n"));
             }
 
             0x18 => { //CLC
                 self.P.set_C(false);
-                println!("CLC");
+                self.add_trace(format!("CLC\n"));
             }
 
             0x19 => { //ORA AbsoluteY
@@ -356,7 +412,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A |= data;
                 self.P.set_NZ(self.A);
-                println!("ORA AbsoluteY");
+                self.add_trace(format!("ORA AbsoluteY\n"));
             }
 
             0x1d => { //ORA AbsoluteX
@@ -364,7 +420,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A |= data;
                 self.P.set_NZ(self.A);
-                println!("ORA AbsoluteX");
+                self.add_trace(format!("ORA AbsoluteX\n"));
             }
 
             0x1e => { //ASL AbsoluteX
@@ -374,7 +430,7 @@ impl CPU6502 {
                 data = data << 1;
                 self.P.set_NZ(data);
                 self.memory.write_memory(address, data);
-                println!("ASL AbsoluteX");
+                self.add_trace(format!("ASL AbsoluteX\n"));
             }
 
             0x20 => { //JSR
@@ -386,7 +442,7 @@ impl CPU6502 {
                 let sp = 0x0100 | self.SP as u16;
                 self.SP = self.SP.overflowing_sub(1).0;
                 self.memory.write_memory(sp, (pc & 0x0ff) as u8);
-                println!("JSR {:#06x} PC={:#06x}", address, self.PC);
+                self.add_trace(format!("JSR {:#06x} PC={:#06x}\n", address, self.PC));
                 self.PC = address;
             }
 
@@ -395,7 +451,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A & data;
                 self.P.set_NZ(self.A);
-                println!("AND IndirectX ({:#04x} => {:#04x})", data, self.A);
+                self.add_trace(format!("AND IndirectX ({:#04x} => {:#04x})\n", data, self.A));
             }
 
             0x24 => { //BIT ZeroPage
@@ -405,7 +461,7 @@ impl CPU6502 {
                 self.P.set_Z(res == 0);
                 self.P.value = (self.P.value & 0b0011_1111) | (data & 0b1100_0000);
 
-                println!("//BIT ZeroPage")
+                self.add_trace(format!("BIT ZeroPage\n"));
             }
 
             0x25 => { //AND ZeroPage
@@ -413,7 +469,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A & data;
                 self.P.set_NZ(self.A);
-                println!("AND ZeroPage ({:#04x} => {:#04x})", data, self.A);
+                self.add_trace(format!("AND ZeroPage ({:#04x} => {:#04x})\n", data, self.A));
             }
 
             0x26 => { //ROL ZeroPage
@@ -424,19 +480,19 @@ impl CPU6502 {
                 self.P.set_C(c);
                 self.P.set_NZ(data);
                 self.memory.write_memory(address, data);
-                println!("ROL ZeroPage");   
+                self.add_trace(format!("ROL ZeroPage\n"));   
             }
 
             0x28 => { //PLP
                 let r = self.SP.overflowing_add(1);
                 self.SP = r.0;
                 if r.1{
-                    println!("Stack Overflow!");
+                    self.add_trace(format!("Stack Overflow!\n"));
                 }
                 let address = 0x0100 | self.SP as u16;
                 let data = self.memory.read_memory(address);
                 self.P.value = data & 0b1100_1111; //ignore B and bit 5
-                println!("PLP Pop P={:#04x} ADDR={:#06x}", self.P.value, address);
+                self.add_trace(format!("PLP Pop P={:#04x} ADDR={:#06x}\n", self.P.value, address));
             }
 
             0x29 => { //AND Immidiate
@@ -444,7 +500,7 @@ impl CPU6502 {
                 self.PC += 1;
                 self.A = self.A & data;
                 self.P.set_NZ(self.A);
-                println!("AND AbsoluteY ({:#04x} => {:#04x})", data, self.A);
+                self.add_trace(format!("AND AbsoluteY ({:#04x} => {:#04x})\n", data, self.A));
             }
 
             0x2a => { //ROL Accumulator
@@ -453,7 +509,7 @@ impl CPU6502 {
                 self.P.set_C(self.A & 0b1000_0000 != 0);
                 self.P.set_NZ(data);
                 self.A = data;
-                println!("ROL Accumulator");   
+                self.add_trace(format!("ROL Accumulator\n"));   
             }
 
             0x2c => { //BIT Absolute
@@ -463,7 +519,7 @@ impl CPU6502 {
                 self.P.set_Z(res == 0);
                 self.P.value = (self.P.value & 0b0011_1111) | (data & 0b1100_0000);
 
-                println!("//BIT Absolute")
+                self.add_trace(format!("BIT Absolute\n"));
             }
 
             0x2d => { //AND Absolute
@@ -471,7 +527,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A & data;
                 self.P.set_NZ(self.A);
-                println!("AND Absolute ({:#04x} => {:#04x})", data, self.A);
+                self.add_trace(format!("AND Absolute ({:#04x} => {:#04x})\n", data, self.A));
             }
 
             0x2e => { //ROL Absolute
@@ -481,7 +537,7 @@ impl CPU6502 {
                 self.P.set_C(self.A & 0b1000_0000 != 0);
                 self.P.set_NZ(data);
                 self.memory.write_memory(address, data);
-                println!("ROL Absolute");   
+                self.add_trace(format!("ROL Absolute\n"));   
             }
 
             0x30 => { //BMI Relative
@@ -490,13 +546,13 @@ impl CPU6502 {
 
                 if self.P.get_N(){
                     let r = (self.PC as i16).overflowing_add(data as i16);
-                    print!("Branch to PC={:#06x} ", r.0);
+                    self.add_trace(format!("Branch to PC={:#06x} ", r.0));
                     self.PC = r.0 as u16;
                 }
                 else {
-                    print!("NOT Branching ");
+                    self.add_trace(format!("NOT Branching "));
                 }
-                println!("BMI Relative [{}]", data);
+                self.add_trace(format!("BMI Relative [{}]\n", data));
             }
 
             0x31 => { //AND IndirectY
@@ -504,7 +560,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A & data;
                 self.P.set_NZ(self.A);
-                println!("AND IndirectY ({:#04x} => {:#04x})", data, self.A);
+                self.add_trace(format!("AND IndirectY ({:#04x} => {:#04x})\n", data, self.A));
             }
 
             0x35 => { //AND ZeroPageX
@@ -512,7 +568,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A & data;
                 self.P.set_NZ(self.A);
-                println!("AND ZeroPageX ({:#04x} => {:#04x})", data, self.A);
+                self.add_trace(format!("AND ZeroPageX ({:#04x} => {:#04x})\n", data, self.A));
             }
 
             0x36 => { //ROL ZeroPageX
@@ -522,12 +578,12 @@ impl CPU6502 {
                 self.P.set_C(self.A & 0b1000_0000 != 0);
                 self.P.set_NZ(data);
                 self.memory.write_memory(address, data);
-                println!("ROL ZeroPageX");   
+                self.add_trace(format!("ROL ZeroPageX\n"));   
             }
 
             0x38 => { //SEC
                 self.P.set_C(true);
-                println!("SEC");
+                self.add_trace(format!("SEC\n"));
             }
 
             0x39 => { //AND AbsoluteY
@@ -535,7 +591,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A & data;
                 self.P.set_NZ(self.A);
-                println!("AND AbsoluteY ({:#04x} => {:#04x})", data, self.A);
+                self.add_trace(format!("AND AbsoluteY ({:#04x} => {:#04x})\n", data, self.A));
             }
 
             0x3d => { //AND AbsoluteX
@@ -543,7 +599,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A & data;
                 self.P.set_NZ(self.A);
-                println!("AND AbsoluteX ({:#04x} => {:#04x})", data, self.A);
+                self.add_trace(format!("AND AbsoluteX ({:#04x} => {:#04x})\n", data, self.A));
             }
 
             0x3e => { //ROL AbsoluteX
@@ -553,7 +609,7 @@ impl CPU6502 {
                 self.P.set_C(self.A & 0b1000_0000 != 0);
                 self.P.set_NZ(data);
                 self.memory.write_memory(address, data);
-                println!("ROL AbsoluteX");   
+                self.add_trace(format!("ROL AbsoluteX\n"));   
             }
 
             0x40 => { //RTI
@@ -566,7 +622,7 @@ impl CPU6502 {
                 let addr = self.memory.read_memory_word(sp);
                 self.SP = self.SP.overflowing_add(1).0;
                 self.PC = addr;
-                println!("RTI {:#06x}", addr);
+                self.add_trace(format!("RTI {:#06x}\n", addr));
             }
 
             0x41 => { //EOR IndirectX
@@ -574,7 +630,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A ^ data;
                 self.P.set_NZ(self.A);
-                println!("EOR IndirectX ({:#04x} => {:#04x})", data, self.A);
+                self.add_trace(format!("EOR IndirectX ({:#04x} => {:#04x})\n", data, self.A));
             }
 
             0x45 => { //EOR ZeroPage
@@ -582,7 +638,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A ^ data;
                 self.P.set_NZ(self.A);
-                println!("EOR ZeroPage ({:#04x} => {:#04x})", data, self.A);
+                self.add_trace(format!("EOR ZeroPage ({:#04x} => {:#04x})\n", data, self.A));
             }
 
             0x46 => { //LSR ZeroPage
@@ -592,7 +648,7 @@ impl CPU6502 {
                 data = data >> 1;
                 self.memory.write_memory(address, data);
                 self.P.set_NZ(data);
-                println!("LSR ZeroPage");
+                self.add_trace(format!("LSR ZeroPage\n"));
             }
 
             0x48 => { //PHA
@@ -601,9 +657,9 @@ impl CPU6502 {
                 let r = self.SP.overflowing_sub(1);
                 self.SP = r.0;
                 if r.1{
-                    println!("Stack Overflow!");
+                    self.add_trace(format!("Stack Overflow!\n"));
                 }
-                println!("PHA Pushed A={:#04x} ADDR={:#06x}", self.A, address);
+                self.add_trace(format!("PHA Pushed A={:#04x} ADDR={:#06x}\n", self.A, address));
             }
 
             0x49 => { //EOR Immediate
@@ -611,7 +667,7 @@ impl CPU6502 {
                 self.PC += 1;
                 self.A = self.A ^ data;
                 self.P.set_NZ(self.A);
-                println!("EOR Immediate ({:#04x} => {:#04x})", data, self.A);
+                self.add_trace(format!("EOR Immediate ({:#04x} => {:#04x})\n", data, self.A));
             }
 
             0x4a => { //LSR Accumulator
@@ -620,13 +676,13 @@ impl CPU6502 {
                 data = data >> 1;
                 self.A = data;
                 self.P.set_NZ(data);
-                println!("LSR Accumulator");
+                self.add_trace(format!("LSR Accumulator\n"));
             }
 
             0x4c => { //JMP Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 self.PC = address;
-                println!("JMP Absolute");
+                self.add_trace(format!("JMP Absolute\n"));
             }
 
             0x4d => { //EOR Absolute
@@ -634,7 +690,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A ^ data;
                 self.P.set_NZ(self.A);
-                println!("EOR Absolute ({:#04x} => {:#04x})", data, self.A);
+                self.add_trace(format!("EOR Absolute ({:#04x} => {:#04x})\n", data, self.A));
             }
 
             0x4e => { //LSR Absolute
@@ -644,7 +700,7 @@ impl CPU6502 {
                 data = data >> 1;
                 self.memory.write_memory(address, data);
                 self.P.set_NZ(data);
-                println!("LSR Absolute");
+                self.add_trace(format!("LSR Absolute\n"));
             }
 
             0x50 => { //BVC
@@ -652,13 +708,13 @@ impl CPU6502 {
                 self.PC += 1;
                 if !self.P.get_V(){
                     let r = (self.PC as i16).overflowing_add(data as i16);
-                    print!("Branch to PC={:#06x} ", r.0);
+                    self.add_trace(format!("Branch to PC={:#06x} ", r.0));
                     self.PC = r.0 as u16;
                 }
                 else {
-                    print!("NOT Branching ");
+                    self.add_trace(format!("NOT Branching "));
                 }
-                println!("BVC Relative [{}]", data);
+                self.add_trace(format!("BVC Relative [{}]\n", data));
             }
 
             0x51 => { //EOR IndirectY
@@ -666,7 +722,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A ^ data;
                 self.P.set_NZ(self.A);
-                println!("EOR IndirectY ({:#04x} => {:#04x})", data, self.A);
+                self.add_trace(format!("EOR IndirectY ({:#04x} => {:#04x})\n", data, self.A));
             }
 
             0x55 => { //EOR ZeroPageX
@@ -674,7 +730,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A ^ data;
                 self.P.set_NZ(self.A);
-                println!("EOR ZeroPageX ({:#04x} => {:#04x})", data, self.A);
+                self.add_trace(format!("EOR ZeroPageX ({:#04x} => {:#04x})\n", data, self.A));
             }
 
             0x56 => { //LSR ZeroPageX
@@ -684,12 +740,12 @@ impl CPU6502 {
                 data = data >> 1;
                 self.memory.write_memory(address, data);
                 self.P.set_NZ(data);
-                println!("LSR ZeroPageX");
+                self.add_trace(format!("LSR ZeroPageX\n"));
             }
 
             0x58 => { //CLI
                 self.P.set_I(false);
-                println!("CLI");
+                self.add_trace(format!("CLI\n"));
             }
 
             0x59 => { //EOR AbsoluteY
@@ -697,7 +753,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A ^ data;
                 self.P.set_NZ(self.A);
-                println!("EOR AbsoluteY ({:#04x} => {:#04x})", data, self.A);
+                self.add_trace(format!("EOR AbsoluteY ({:#04x} => {:#04x})\n", data, self.A));
             }
 
             0x5d => { //EOR AbsoluteX
@@ -705,7 +761,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A ^ data;
                 self.P.set_NZ(self.A);
-                println!("EOR AbsoluteX ({:#04x} => {:#04x})", data, self.A);
+                self.add_trace(format!("EOR AbsoluteX ({:#04x} => {:#04x})\n", data, self.A));
             }
 
             0x5e => { //LSR AbsoluteX
@@ -715,7 +771,7 @@ impl CPU6502 {
                 data = data >> 1;
                 self.memory.write_memory(address, data);
                 self.P.set_NZ(data);
-                println!("LSR AbsoluteX");
+                self.add_trace(format!("LSR AbsoluteX\n"));
             }
 
             0x60 => { //RTS
@@ -724,7 +780,7 @@ impl CPU6502 {
                 let addr = self.memory.read_memory_word(sp).overflowing_add(1).0;
                 self.SP = self.SP.overflowing_add(1).0;
                 self.PC = addr;
-                println!("RTS {:#06x}", addr);
+                self.add_trace(format!("RTS {:#06x}\n", addr));
             }
 
             0x61 => { //ADC IndirectX
@@ -747,20 +803,20 @@ impl CPU6502 {
                 self.P.set_C(c);
                 self.P.set_NZ(data);
                 self.memory.write_memory(address, data);
-                println!("ROR ZeroPage");   
+                self.add_trace(format!("ROR ZeroPage\n"));   
             }
 
             0x68 => {  //PLA
                 let r = self.SP.overflowing_add(1);
                 self.SP = r.0;
                 if r.1{
-                    println!("Stack Overflow!");
+                    self.add_trace(format!("Stack Overflow!\n"));
                 }
                 let address = 0x0100 | self.SP as u16;
                 let data = self.memory.read_memory(address);
                 self.A = data;
                 self.P.set_NZ(data);
-                println!("PLA Pop A={:#04x} ADDR={:#06x}", data, address);
+                self.add_trace(format!("PLA Pop A={:#04x} ADDR={:#06x}\n", data, address));
             }
 
             0x69 => { //ADC Immediate
@@ -775,13 +831,13 @@ impl CPU6502 {
                 self.P.set_C(self.A & 0b0000_0001 != 0);
                 self.P.set_NZ(data);
                 self.A = data;
-                println!("ROR Accumulator");   
+                self.add_trace(format!("ROR Accumulator\n"));   
             }
 
             0x6c => { //JMP Indirect
                 let address = self.get_address(AdressingType::Indirect);
                 self.PC = address;
-                println!("JMP Indirect PC={:#06x} ", address);
+                self.add_trace(format!("JMP Indirect PC={:#06x}\n", address));
             }
 
             0x6d => { //ADC Absolute
@@ -798,7 +854,7 @@ impl CPU6502 {
                 self.P.set_C(c);
                 self.P.set_NZ(data);
                 self.memory.write_memory(address, data);
-                println!("ROR Absolute");   
+                self.add_trace(format!("ROR Absolute\n"));   
             }
 
             0x70 => { //BVS
@@ -807,13 +863,13 @@ impl CPU6502 {
                 
                 if self.P.get_V(){
                     let r = (self.PC as i16).overflowing_add(data as i16);
-                    print!("Branch to PC={:#06x} ", r.0);
+                    self.add_trace(format!("Branch to PC={:#06x} ", r.0));
                     self.PC = r.0 as u16;
                 }
                 else {
-                    print!("NOT Branching ");
+                    self.add_trace(format!("NOT Branching "));
                 }
-                println!("BVS Relative [{}]", data);
+                self.add_trace(format!("BVS Relative [{}]\n", data));
             }
 
             0x71 => { //ADC IndirectY
@@ -836,12 +892,12 @@ impl CPU6502 {
                 self.P.set_C(c);
                 self.P.set_NZ(data);
                 self.memory.write_memory(address, data);
-                println!("ROR ZeroPageX");   
+                self.add_trace(format!("ROR ZeroPageX\n"));   
             }
 
             0x78 => { //SEI
                 self.P.set_I(true);
-                println!("SEI");
+                self.add_trace(format!("SEI\n"));
             }
 
             0x79 => { //ADC AbsoluteY
@@ -864,61 +920,61 @@ impl CPU6502 {
                 self.P.set_C(c);
                 self.P.set_NZ(data);
                 self.memory.write_memory(address, data);
-                println!("ROR AbsoluteX");
+                self.add_trace(format!("ROR AbsoluteX\n"));
             }
 
             0x81 => { //STA IndirectX
                 let address = self.get_address(AdressingType::IndirectX);
                 self.memory.write_memory(address, self.A);
-                println!("STA IndirectX ({:#04x})", self.A);
+                self.add_trace(format!("STA IndirectX ({:#04x})\n", self.A));
             }
 
             0x84 => { //STY ZeroPage
                 let address = self.get_address(AdressingType::ZeroPage);
                 self.memory.write_memory(address, self.Y);
-                println!("STY ZeroPage ({:#04x})", self.A);
+                self.add_trace(format!("STY ZeroPage ({:#04x})\n", self.A));
             }
 
             0x85 => { //STA ZeroPage
                 let address = self.get_address(AdressingType::ZeroPage);
                 self.memory.write_memory(address, self.A);
-                println!("STA ZeroPage ({:#04x})", self.A);
+                self.add_trace(format!("STA ZeroPage ({:#04x})\n", self.A));
             }
 
             0x86 => { //STX ZeroPage
                 let address = self.get_address(AdressingType::ZeroPage);
                 self.memory.write_memory(address, self.X);
-                println!("STX ZeroPage ({:#04x})", self.X);
+                self.add_trace(format!("STX ZeroPage ({:#04x})\n", self.X));
             }
 
             0x88 => { //DEY
                 self.Y = self.Y.overflowing_sub(1).0;
                 self.P.set_NZ(self.Y);
-                println!("DEY");
+                self.add_trace(format!("DEY\n"));
             }
 
             0x8a => { //TXA
                 self.A = self.X;
                 self.P.set_NZ(self.A);
-                println!("TXA");
+                self.add_trace(format!("TXA\n"));
             }
 
             0x8c => { //STY Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 self.memory.write_memory(address, self.Y);
-                println!("STY Absolute ({:#04x})", self.A);
+                self.add_trace(format!("STY Absolute ({:#04x})\n", self.A));
             }
 
             0x8d => { //STA Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 self.memory.write_memory(address, self.A);
-                println!("STA Absolute ({:#04x})", self.A);
+                self.add_trace(format!("STA Absolute ({:#04x})\n", self.A));
             }
 
             0x8e => { //STX Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 self.memory.write_memory(address, self.X);
-                println!("STX Absolute ({:#04x})", self.X);
+                self.add_trace(format!("STX Absolute ({:#04x})\n", self.X));
             }
 
             0x90 => { //BCC
@@ -927,60 +983,60 @@ impl CPU6502 {
 
                 if !self.P.get_C(){
                     let r = (self.PC as i16).overflowing_add(data as i16);
-                    print!("Branch to PC={:#06x} ", r.0);
+                    self.add_trace(format!("Branch to PC={:#06x} ", r.0));
                     self.PC = r.0 as u16;
                 }
                 else {
-                    print!("NOT Branching ");
+                    self.add_trace(format!("NOT Branching "));
                 }
-                println!("BCC Relative [{}]", data);
+                self.add_trace(format!("BCC Relative [{}]\n", data));
             }
 
             0x91 => { //STA IndirectY
                 let address = self.get_address(AdressingType::IndirectY);
                 self.memory.write_memory(address, self.A);
-                println!("STA IndirectY ({:#04x})", self.A);
+                self.add_trace(format!("STA IndirectY ({:#04x})\n", self.A));
             }
 
             0x94 => { //STY ZeroPageX
                 let address = self.get_address(AdressingType::ZeroPageX);
                 self.memory.write_memory(address, self.Y);
-                println!("STY ZeroPageX ({:#04x})", self.A);
+                self.add_trace(format!("STY ZeroPageX ({:#04x})\n", self.A));
             }
 
             0x95 => { //STA ZeroPageX
                 let address = self.get_address(AdressingType::ZeroPageX);
                 self.memory.write_memory(address, self.A);
-                println!("STA ZeroPageX ({:#04x})", self.A);
+                self.add_trace(format!("STA ZeroPageX ({:#04x})\n", self.A));
             }
 
             0x96 => { //STX ZeroPageY
                 let address = self.get_address(AdressingType::ZeroPageY);
                 self.memory.write_memory(address, self.X);
-                println!("STX ZeroPageY ({:#04x})", self.X);
+                self.add_trace(format!("STX ZeroPageY ({:#04x})\n", self.X));
             }
 
             0x98 => { //TYA
                 self.A = self.Y;
                 self.P.set_NZ(self.A);
-                println!("TYA");
+                self.add_trace(format!("TYA\n"));
             }
 
             0x99 => { //STA AbsoluteY
                 let address = self.get_address(AdressingType::AbsoluteY);
                 self.memory.write_memory(address, self.A);
-                println!("STX AbsoluteY ({:#04x})", self.Y);
+                self.add_trace(format!("STX AbsoluteY ({:#04x})\n", self.Y));
             }
 
             0x9a => {//TXS
                 self.SP = self.X;
-                println!("TXS");
+                self.add_trace(format!("TXS\n"));
             }
 
             0x9d => { //STA AbsoluteX
                 let address = self.get_address(AdressingType::AbsoluteX);
                 self.memory.write_memory(address, self.A);
-                println!("STA AbsoluteX ({:#04x})", self.A);
+                self.add_trace(format!("STA AbsoluteX ({:#04x})\n", self.A));
             }
 
             0xa0 => { //LDY Immediate
@@ -988,7 +1044,7 @@ impl CPU6502 {
                 self.PC += 1;
                 self.Y = data;
                 self.P.set_NZ(data);
-                println!("LDY Immediate ({:#04x})", data);
+                self.add_trace(format!("LDY Immediate ({:#04x})\n", data));
             }
 
             0xa1 => { //LDA IndirectX
@@ -996,7 +1052,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = data;
                 self.P.set_NZ(data);
-                println!("LDA IndirectX ({:#04x})", data);
+                self.add_trace(format!("LDA IndirectX ({:#04x})\n", data));
             }
 
             0xa2 => { //LDX Immediate
@@ -1004,7 +1060,7 @@ impl CPU6502 {
                 self.PC += 1;
                 self.X = data;
                 self.P.set_NZ(data);
-                println!("LDX Immediate ({:#04x})", data);
+                self.add_trace(format!("LDX Immediate ({:#04x})\n", data));
             }
 
             0xa4 => { //LDY ZeroPage
@@ -1012,7 +1068,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.Y = data;
                 self.P.set_NZ(data);
-                println!("LDY ZeroPage ({:#04x})", data);
+                self.add_trace(format!("LDY ZeroPage ({:#04x})\n", data));
             }
 
             0xa5 => { //LDA ZeroPage
@@ -1020,7 +1076,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = data;
                 self.P.set_NZ(data);
-                println!("LDA ZeroPage ({:#04x})", data);
+                self.add_trace(format!("LDA ZeroPage ({:#04x})\n", data));
             }
 
             0xa6 => { //LDX ZeroPage
@@ -1028,13 +1084,13 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.X = data;
                 self.P.set_NZ(data);
-                println!("LDX ZeroPage ({:#04x})", data);
+                self.add_trace(format!("LDX ZeroPage ({:#04x})\n", data));
             }
 
             0xa8 => { //TAY
                 self.Y = self.A;
                 self.P.set_NZ(self.Y);
-                println!("TAY");
+                self.add_trace(format!("TAY\n"));
             }
 
             0xa9 => { //LDA Immediate
@@ -1042,13 +1098,13 @@ impl CPU6502 {
                 self.PC += 1;
                 self.A = data;
                 self.P.set_NZ(data);
-                println!("LDA Immediate ({:#04x})", data);
+                self.add_trace(format!("LDA Immediate ({:#04x})\n", data));
             }
 
             0xaa => { //TAX
                 self.X = self.A;
                 self.P.set_NZ(self.X);
-                println!("TAX");
+                self.add_trace(format!("TAX\n"));
             }
 
             0xac => { //LDY Absolute
@@ -1056,7 +1112,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.Y = data;
                 self.P.set_NZ(data);
-                println!("LDY Absolute ({:#04x})", data);
+                self.add_trace(format!("LDY Absolute ({:#04x})\n", data));
             }
 
             0xad => { //LDA Absolute
@@ -1064,7 +1120,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = data;
                 self.P.set_NZ(data);
-                println!("LDA Absolute ({:#04x})", data);
+                self.add_trace(format!("LDA Absolute ({:#04x})\n", data));
             }
 
             0xae => { //LDX Absolute
@@ -1072,7 +1128,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.X = data;
                 self.P.set_NZ(data);
-                println!("LDX Absolute ({:#04x})", data);
+                self.add_trace(format!("LDX Absolute ({:#04x})\n", data));
             }
 
             0xb0 => {
@@ -1081,13 +1137,13 @@ impl CPU6502 {
 
                 if self.P.get_C(){
                     let r = (self.PC as i16).overflowing_add(data as i16);
-                    print!("Branch to PC={:#06x} ", r.0);
+                    self.add_trace(format!("Branch to PC={:#06x} ", r.0));
                     self.PC = r.0 as u16;
                 }
                 else {
-                    print!("NOT Branching ");
+                    self.add_trace(format!("NOT Branching "));
                 }
-                println!("BCS Relative [{}]", data);
+                self.add_trace(format!("BCS Relative [{}]\n", data));
             }
 
             0xb1 => { //LDA IndirectY
@@ -1095,7 +1151,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = data;
                 self.P.set_NZ(data);
-                println!("LDA IndirectY ({:#04x})", data);
+                self.add_trace(format!("LDA IndirectY ({:#04x})\n", data));
             }
 
             0xb4 => { //LDY ZeroPageX
@@ -1103,7 +1159,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.Y = data;
                 self.P.set_NZ(data);
-                println!("LDY ZeroPageX ({:#04x})", data);
+                self.add_trace(format!("LDY ZeroPageX ({:#04x})\n", data));
             }
 
             0xb5 => { //LDA ZeroPageX
@@ -1111,7 +1167,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = data;
                 self.P.set_NZ(data);
-                println!("LDA ZeroPageX ({:#04x})", data);
+                self.add_trace(format!("LDA ZeroPageX ({:#04x})\n", data));
             }
 
             0xb6 => { //LDX ZeroPageY
@@ -1119,12 +1175,12 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.X = data;
                 self.P.set_NZ(data);
-                println!("LDX ZeroPageY ({:#04x})", data);
+                self.add_trace(format!("LDX ZeroPageY ({:#04x})\n", data));
             }
 
             0xb8 => { //CLV
                 self.P.set_V(false);
-                println!("CLV");
+                self.add_trace(format!("CLV\n"));
             }
 
             0xb9 => { //LDA AbsoluteY
@@ -1132,13 +1188,13 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = data;
                 self.P.set_NZ(data);
-                println!("LDA AbsoluteY ({:#04x})", data);
+                self.add_trace(format!("LDA AbsoluteY ({:#04x})\n", data));
             }
 
             0xba => { //TSX
                 self.X = self.SP;
                 self.P.set_NZ(self.X);
-                println!("TSX({:#04x})", self.X);
+                self.add_trace(format!("TSX({:#04x})\n", self.X));
             }
 
             0xbc => { //LDY AbsoluteX
@@ -1146,7 +1202,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.Y = data;
                 self.P.set_NZ(data);
-                println!("LDY AbsoluteX ({:#04x})", data);
+                self.add_trace(format!("LDY AbsoluteX ({:#04x})\n", data));
             }
 
             0xbd => { //LDA AbsoluteX
@@ -1154,7 +1210,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = data;
                 self.P.set_NZ(data);
-                println!("LDA AbsoluteX ({:#04x})", data);
+                self.add_trace(format!("LDA AbsoluteX ({:#04x})\n", data));
             }
 
             0xbe => { //LDX AbsoluteY
@@ -1162,7 +1218,7 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.X = data;
                 self.P.set_NZ(data);
-                println!("LDX AbsoluteY ({:#04x})", data);
+                self.add_trace(format!("LDX AbsoluteY ({:#04x})\n", data));
             }
 
             0xc0 => { //CPY Immediate
@@ -1171,17 +1227,17 @@ impl CPU6502 {
                 let r = self.Y.overflowing_sub(data);
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                println!("CPY Immediate");
+                self.add_trace(format!("CPY Immediate\n"));
             }
 
             0xc1 => { //CMP IndirectX
                 let address = self.get_address(AdressingType::IndirectX);
                 let data = self.memory.read_memory(address);
                 let r = self.A.overflowing_sub(data);
-                print!("CMP v={:?} ", r);
+                self.add_trace(format!("CMP v={:?} ", r));
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                println!("CMP IndirectX ({:#04x})", data);
+                self.add_trace(format!("CMP IndirectX ({:#04x})\n", data));
             }
 
             0xc4 => { //CPY ZeroPage
@@ -1190,17 +1246,17 @@ impl CPU6502 {
                 let r = self.Y.overflowing_sub(data);
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                println!("CPY ZeroPage");
+                self.add_trace(format!("CPY ZeroPage"));
             }
 
             0xc5 => { //CMP ZeroPage
                 let address = self.get_address(AdressingType::ZeroPage);
                 let data = self.memory.read_memory(address);
                 let r = self.A.overflowing_sub(data);
-                print!("CMP v={:?} ", r);
+                self.add_trace(format!("CMP v={:?} ", r));
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                println!("CMP ZeroPage ({:#04x})", data);
+                self.add_trace(format!("CMP ZeroPage ({:#04x})\n", data));
             }
 
             0xc6 => { //DEC ZeroPage
@@ -1209,13 +1265,13 @@ impl CPU6502 {
                 data = data.overflowing_sub(1).0;
                 self.memory.write_memory(address, data);
                 self.P.set_NZ(data);
-                println!("DEC ZeroPage ({:#04x})", data);
+                self.add_trace(format!("DEC ZeroPage ({:#04x})\n", data));
             }
 
             0xc8 => { //INY
                 self.Y = self.Y.overflowing_add(1).0;
                 self.P.set_NZ(self.Y);
-                println!("INY");
+                self.add_trace(format!("INY\n"));
             }
 
             0xc9 => { //CMP Immediate
@@ -1223,16 +1279,16 @@ impl CPU6502 {
                 self.PC += 1;
                 let r = self.A.overflowing_sub(data);
                 
-                print!("CMP v={:?} ", r);
+                self.add_trace(format!("CMP v={:?} ", r));
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                println!("CMP Immediate ({:#04x})", data);
+                self.add_trace(format!("CMP Immediate ({:#04x})\n", data));
             }
 
             0xca => { //DEX
                 self.X = self.X.overflowing_sub(1).0;
                 self.P.set_NZ(self.X);
-                println!("DEX");
+                self.add_trace(format!("DEX\n"));
             }
 
             0xcc => { //CPY Absolute
@@ -1241,17 +1297,17 @@ impl CPU6502 {
                 let r = self.Y.overflowing_sub(data);
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                println!("CPY Absolute");
+                self.add_trace(format!("CPY Absolute\n"));
             }
 
             0xcd => { //CMP Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 let data = self.memory.read_memory(address);
                 let r = self.A.overflowing_sub(data);
-                print!("CMP v={:?} ", r);
+                self.add_trace(format!("CMP v={:?} ", r));
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                println!("CMP Absolute ({:#04x})", data);
+                self.add_trace(format!("CMP Absolute ({:#04x})\n", data));
             }
 
             0xce => { //DEC Absolute
@@ -1260,7 +1316,7 @@ impl CPU6502 {
                 data = data.overflowing_sub(1).0;
                 self.memory.write_memory(address, data);
                 self.P.set_NZ(data);
-                println!("DEC Absolute ({:#04x})", data);
+                self.add_trace(format!("DEC Absolute ({:#04x})", data));
             }
 
             0xd0 => { //BNE Relative
@@ -1269,33 +1325,33 @@ impl CPU6502 {
                 
                 if !self.P.get_Z(){
                     let r = (self.PC as i16).overflowing_add(data as i16);
-                    print!("Branch to PC={:#06x} ", r.0);
+                    self.add_trace(format!("Branch to PC={:#06x} ", r.0));
                     self.PC = r.0 as u16;
                 }
                 else {
-                    print!("NOT Branching ");
+                    self.add_trace(format!("NOT Branching "));
                 }
-                println!("BNE Relative [{}]", data);
+                self.add_trace(format!("BNE Relative [{}]'n", data));
             }
 
             0xd1 => { //CMP IndirectY
                 let address = self.get_address(AdressingType::IndirectY);
                 let data = self.memory.read_memory(address);
                 let r = self.A.overflowing_sub(data);
-                print!("CMP v={:?} ", r);
+                self.add_trace(format!("CMP v={:?} ", r));
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                println!("CMP IndirectY ({:#04x})", data);
+                self.add_trace(format!("CMP IndirectY ({:#04x})", data));
             }
 
             0xd5 => { //CMP ZeroPageX
                 let address = self.get_address(AdressingType::ZeroPageX);
                 let data = self.memory.read_memory(address);
                 let r = self.A.overflowing_sub(data);
-                print!("CMP v={:?} ", r);
+                self.add_trace(format!("CMP v={:?} ", r));
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                println!("CMP ZeroPageX ({:#04x})", data);
+                self.add_trace(format!("CMP ZeroPageX ({:#04x})\n", data));
             }
 
             0xd6 => { //DEC ZeroPageX
@@ -1304,32 +1360,32 @@ impl CPU6502 {
                 data = data.overflowing_sub(1).0;
                 self.memory.write_memory(address, data);
                 self.P.set_NZ(data);
-                println!("DEC ZeroPageX ({:#04x})", data);
+                self.add_trace(format!("DEC ZeroPageX ({:#04x})\n", data));
             }
 
             0xd8 => { //CLD Clear Decimal Mode
                 self.P.set_D(false);
-                println!("CLD");
+                self.add_trace(format!("CLD\n"));
             }
 
             0xd9 => { //CMP AbsoluteY
                 let address = self.get_address(AdressingType::AbsoluteY);
                 let data = self.memory.read_memory(address);
                 let r = self.A.overflowing_sub(data);
-                print!("CMP v={:?} ", r);
+                self.add_trace(format!("CMP v={:?} ", r));
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                println!("CMP AbsoluteY ({:#04x})", data);  
+                self.add_trace(format!("CMP AbsoluteY ({:#04x})\n", data));  
             }
 
             0xdd => { //CMP AbsoluteX
                 let address = self.get_address(AdressingType::AbsoluteX);
                 let data = self.memory.read_memory(address);
                 let r = self.A.overflowing_sub(data);
-                print!("CMP v={:?} ", r);
+                self.add_trace(format!("CMP v={:?} ", r));
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                println!("CMP AbsoluteX ({:#04x})", data);
+                self.add_trace(format!("CMP AbsoluteX ({:#04x})\n", data));
             }
 
             0xde => { //DEC AbsoluteX
@@ -1338,17 +1394,17 @@ impl CPU6502 {
                 data = data.overflowing_sub(1).0;
                 self.memory.write_memory(address, data);
                 self.P.set_NZ(data);
-                println!("DEC AbsoluteX ({:#04x})", data);
+                self.add_trace(format!("DEC AbsoluteX ({:#04x})\n", data));
             }
 
             0xe0 => { //CPX Immediate
                 let data = self.memory.read_memory(self.PC);
                 self.PC += 1;
                 let r = self.X.overflowing_sub(data);
-                print!("CPX v={:?} ", r);
+                self.add_trace(format!("CPX v={:?} ", r));
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                println!("CPX Immediate ({:#06x})", data);
+                self.add_trace(format!("CPX Immediate ({:#06x})\n", data));
             }
 
             0xe1 => { //SBC IndirectX
@@ -1361,10 +1417,10 @@ impl CPU6502 {
                 let address = self.get_address(AdressingType::ZeroPage);
                 let data = self.memory.read_memory(address);
                 let r = self.X.overflowing_sub(data);
-                print!("CPX v={:?} ", r);
+                self.add_trace(format!("CPX v={:?} ", r));
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                println!("CPX ZeroPage ({:#06x})", data);
+                self.add_trace(format!("CPX ZeroPage ({:#06x})\n", data));
             }
 
             0xe5 => { //SBC ZeroPage
@@ -1379,14 +1435,14 @@ impl CPU6502 {
                 data = data.overflowing_add(1).0;
                 self.memory.write_memory(address, data);
                 self.P.set_NZ(data);
-                println!("INC ZeroPage ({:#04x})", data);
+                self.add_trace(format!("INC ZeroPage ({:#04x})\n", data));
             }
 
             0xe8 => { //INX
                 let r = self.X.overflowing_add(1);
                 self.X = r.0;
                 self.P.set_NZ(r.0);
-                println!("INX");
+                self.add_trace(format!("INX\n"));
             }
 
             0xe9 => { //SBC ZeroPage
@@ -1396,17 +1452,17 @@ impl CPU6502 {
             }
 
             0xea => { //NOP
-                println!("NOP");
+                self.add_trace(format!("NOP\n"));
             }
 
             0xec => { //CPX Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 let data = self.memory.read_memory(address);
                 let r = self.X.overflowing_sub(data);
-                print!("CPX v={:?} ", r);
+                self.add_trace(format!("CPX v={:?} ", r));
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                println!("CPX Absolute ({:#06x})", data);
+                self.add_trace(format!("CPX Absolute ({:#06x})\n", data));
             }
 
             0xed => { //SBC Absolute
@@ -1421,7 +1477,7 @@ impl CPU6502 {
                 data = data.overflowing_add(1).0;
                 self.memory.write_memory(address, data);
                 self.P.set_NZ(data);
-                println!("INC Absolute ({:#04x})", data);
+                self.add_trace(format!("INC Absolute ({:#04x})\n", data));
             }
 
             0xf0 => { //BEQ Relative
@@ -1430,13 +1486,13 @@ impl CPU6502 {
 
                 if self.P.get_Z(){
                     let r = (self.PC as i16).overflowing_add(data as i16);
-                    print!("Branch to PC={:#06x} ", r.0);
+                    self.add_trace(format!("Branch to PC={:#06x} ", r.0));
                     self.PC = r.0 as u16;
                 }
                 else {
-                    print!("NOT Branching ");
+                    self.add_trace(format!("NOT Branching "));
                 }
-                println!("BEQ Relative [{}]", data);
+                self.add_trace(format!("BEQ Relative [{}]\n", data));
             }
 
             0xf1 => { //SBC IndirectY
@@ -1457,12 +1513,12 @@ impl CPU6502 {
                 data = data.overflowing_add(1).0;
                 self.memory.write_memory(address, data);
                 self.P.set_NZ(data);
-                println!("INC ZeroPageX ({:#04x})", data);
+                self.add_trace(format!("INC ZeroPageX ({:#04x})\n", data));
             }
 
             0xf8 => { //SED
                 self.P.set_D(true);
-                println!("SED");
+                self.add_trace(format!("SED\n"));
             }
 
             0xf9 => { //SBC AbsoluteY
@@ -1483,26 +1539,27 @@ impl CPU6502 {
                 data = data.overflowing_add(1).0;
                 self.memory.write_memory(address, data);
                 self.P.set_NZ(data);
-                println!("INC AbsoluteX ({:#04x})", data);
+                self.add_trace(format!("INC AbsoluteX ({:#04x})\n", data));
             }
 
             _  => {
-                todo!("INS={:#04x}", ins);
+                self.add_trace("\n".to_owned());
+                self.show_cpu_debug();
+                return Err(CpuError::new(&format!("Unknown instruction: INS={:#04x}", ins)));
             }
         }
 
         if self.PC == self.prev_PC{
-            println!("{:?}", self);
-            self.memory.show_zero_page();
-            self.memory.show_stack();
-            panic!("LOOP Detected PC={:#06x}", self.PC);
+            return Err(CpuError::new(&format!("LOOP Detected PC={:#06x}", self.PC)));
         }
         self.prev_PC = self.PC;
+
+        Ok(())
     }
 
     fn interrupt(&mut self, int: InterruptType){
         if self.P.get_I() && int == InterruptType::INT{
-            println!("INT while innterrupts are disabled");
+            self.add_trace(format!("INT while innterrupts are disabled\n"));
             return;
         }
         let sp = 0x0100 | self.SP as u16;
@@ -1514,7 +1571,6 @@ impl CPU6502 {
         let sp = 0x0100 | self.SP as u16;
         self.SP = self.SP.overflowing_sub(1).0;
         if int == InterruptType::BRK{
-            //print!(" Write P={:#04x} on stack ({:#06x})", self.P.value | 0b0011_0000, sp);
             self.memory.write_memory(sp, self.P.value | 0b0011_0000); //Set Interrupt flag
         }
         else{
@@ -1528,7 +1584,7 @@ impl CPU6502 {
                 self.memory.read_memory_word(0xfffa)
             }
         };
-        println!("INT PC={:#06x} SP={:#04x} INTVEC={:#06x}", self.PC, self.P.value, address);
+        self.add_trace(format!("INT PC={:#06x} SP={:#04x} INTVEC={:#06x}\n", self.PC, self.P.value, address));
         self.PC = address;
         self.P.set_I(true); //Disable Interupts
     }
@@ -1570,8 +1626,14 @@ mod tests{
         println!("CPU: {:?}", cpu);
 
         for _i in 0..11{
-            cpu.run_single();
-            println!("CPU: {:?}", cpu);
+            match cpu.run_single() {
+                Ok(_) => {},
+                Err(e) => {
+                    cpu.show_cpu_debug();
+                    println!("Error: {}", e);
+                    break;
+                }
+            };
         }
         assert_eq!(cpu.A, 0x31);
         assert_eq!(cpu.X, 0x01);
@@ -1601,8 +1663,14 @@ mod tests{
         println!("CPU: {:?}", cpu);
 
         for _i in 0..4{
-            cpu.run_single();
-            println!("CPU: {:?}", cpu);
+            match cpu.run_single() {
+                Ok(_) => {},
+                Err(e) => {
+                    cpu.show_cpu_debug();
+                    println!("Error: {}", e);
+                    break;
+                }
+            };
         }
         assert_eq!(cpu.A, 0x84);
         assert_eq!(cpu.X, 0xc1);
@@ -1633,8 +1701,14 @@ mod tests{
         println!("CPU: {:?}", cpu);
 
         for _i in 0..4{
-            cpu.run_single();
-            println!("CPU: {:?}", cpu);
+            match cpu.run_single() {
+                Ok(_) => {},
+                Err(e) => {
+                    cpu.show_cpu_debug();
+                    println!("Error: {}", e);
+                    break;
+                }
+            };
         }
 
         assert_eq!(cpu.A, 0x01);
@@ -1668,8 +1742,14 @@ mod tests{
         println!("CPU: {:?}", cpu);
 
         for _i in 0..4{
-            cpu.run_single();
-            println!("CPU: {:?}", cpu);
+            match cpu.run_single() {
+                Ok(_) => {},
+                Err(e) => {
+                    cpu.show_cpu_debug();
+                    println!("Error: {}", e);
+                    break;
+                }
+            };
         }
 
         assert_eq!(cpu.A, 0x01);
@@ -1704,8 +1784,14 @@ mod tests{
         println!("CPU: {:?}", cpu);
 
         for _i in 0..5{
-            cpu.run_single();
-            println!("CPU: {:?}", cpu);
+            match cpu.run_single() {
+                Ok(_) => {},
+                Err(e) => {
+                    cpu.show_cpu_debug();
+                    println!("Error: {}", e);
+                    break;
+                }
+            };
         }
 
         assert_eq!(cpu.PC, 0xcc01);
@@ -1741,8 +1827,14 @@ mod tests{
         println!("CPU: {:?}", cpu);
 
         for _i in 0..9{
-            cpu.run_single();
-            println!("CPU: {:?}", cpu);
+            match cpu.run_single() {
+                Ok(_) => {},
+                Err(e) => {
+                    cpu.show_cpu_debug();
+                    println!("Error: {}", e);
+                    break;
+                }
+            };
         }
 
         assert_eq!(cpu.A, 0x0a);
@@ -1785,8 +1877,14 @@ mod tests{
         println!("CPU: {:?}", cpu);
 
         for _i in 0..9{
-            cpu.run_single();
-            println!("CPU: {:?}", cpu);
+            match cpu.run_single() {
+                Ok(_) => {},
+                Err(e) => {
+                    cpu.show_cpu_debug();
+                    println!("Error: {}", e);
+                    break;
+                }
+            };
         }
 
         assert_eq!(cpu.A, 0x0a);
@@ -1834,7 +1932,14 @@ mod tests{
         cpu.reset_at(0x0600);
 
         for _i in 0..195{
-            cpu.run_single();
+            match cpu.run_single() {
+                Ok(_) => {},
+                Err(e) => {
+                    cpu.show_cpu_debug();
+                    println!("Error: {}", e);
+                    break;
+                }
+            };
         }
 
         println!("CPU: {:?}", cpu);
@@ -1872,8 +1977,14 @@ mod tests{
         println!("CPU: {:?}", cpu);
 
         for _i in 0..4{
-            cpu.run_single();
-            println!("CPU: {:?}", cpu);
+            match cpu.run_single() {
+                Ok(_) => {},
+                Err(e) => {
+                    cpu.show_cpu_debug();
+                    println!("Error: {}", e);
+                    break;
+                }
+            };
         }
 
         assert_eq!(cpu.A, 0x03);
@@ -1916,8 +2027,14 @@ mod tests{
         println!("CPU: {:?}", cpu);
 
         for _i in 0..22{
-            cpu.run_single();
-            //println!("CPU: {:?}", cpu);
+            match cpu.run_single() {
+                Ok(_) => {},
+                Err(e) => {
+                    cpu.show_cpu_debug();
+                    println!("Error: {}", e);
+                    break;
+                }
+            };
         }
 
         assert_eq!(cpu.A, 0x00);
@@ -1933,17 +2050,27 @@ mod tests{
         let mem = Memory::from_file("./tests/6502_functional_test.bin").unwrap();
         let mut cpu = CPU6502::new(mem);
         cpu.reset_at(0x0400);
+        cpu.enable_trace(128);
 
         let mut cnt = 0;
 
         loop{
             //println!("{}", cnt);
-            cpu.run_single();
+            match cpu.run_single() {
+                Ok(_) => {},
+                Err(e) => {
+                    cpu.show_cpu_debug();
+                    println!("Error: {}", e);
+                    break;
+                }
+            };
+            
             //cpu.memory.show_stack();
             //println!("CPU: {:?}", cpu);
             cnt += 1;
 
             if cnt > 100_000_000{
+                cpu.show_trace();
                 assert!(false);
             }
         }
