@@ -3,6 +3,7 @@ pub use memory::Memory;
 use std::collections::VecDeque;
 use std::error::Error;
 
+#[derive(Clone,Copy)]
 struct StatusRegister{
     value: u8,
 }
@@ -91,7 +92,7 @@ impl CpuError {
 
 impl std::fmt::Display for CpuError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error>{
-        fmt.write_str("")
+        fmt.write_str(&format!("[{}]", self.error_string))
     }
 }
 
@@ -107,6 +108,27 @@ enum InterruptType {
 }
 
 #[allow(non_snake_case)]
+struct CPUState{
+    ins: u8,
+    op1: u8,
+    op2: u8,
+
+    A:  u8,
+    X:  u8,
+    Y:  u8,
+    P:  StatusRegister,
+    SP:  u8,
+    PC: u16,
+    adr: u16,
+}
+
+impl CPUState {
+    fn from_cpu(cpu: &CPU6502, ins: u8, op1: u8, op2: u8, adr: u16) -> Self{
+        CPUState { ins: ins, op1: op1, op2: op2, A: cpu.A, X: cpu.X, Y: cpu.Y, P: cpu.P, SP: cpu.SP, PC: cpu.PC, adr: adr }
+    }
+}
+
+#[allow(non_snake_case)]
 pub struct CPU6502{
     A:  u8,
     X:  u8,
@@ -119,7 +141,7 @@ pub struct CPU6502{
     memory: Memory,
 
     trace_line_limit : usize,
-    trace: Option<VecDeque<String>>,
+    trace: Option<VecDeque<CPUState>>,
 }
 
 impl std::fmt::Debug for CPU6502 {
@@ -150,11 +172,31 @@ impl CPU6502 {
         self.PC = start_address;
     }
 
-    fn adc(&mut self, value: u8){
+    fn adc(&mut self, mut state: CPUState, value: u8){
+        state.op1 = value;
         if self.P.get_D(){
-            self.add_trace("ADC\n".to_owned());
-            self.show_cpu_debug();
-            todo!("Decimal!");
+            self.P.set_V(false);
+
+            let lowv = value & 0x0f;
+            let lowa = self.A & 0x0f;
+
+            let highv = value >> 4;
+            let higha = self.A >> 4;
+
+            let rem = if (lowv + lowa + self.P.get_C() as u8) > 9{
+                1
+            }
+            else{
+                0
+            };
+
+            self.P.set_C(highv + higha + rem > 9);
+            self.A = (lowa + lowv + self.P.get_C() as u8) % 10 | ((higha + highv + rem) % 10 << 4);
+
+            //self.add_trace(format!("ADC ({:#04x} => {:#04x})\n", value, self.A));
+            state.A = self.A;
+            self.add_trace(state);
+            return;
         }
 
         let data = value as u16 + self.A as u16 + self.P.get_C() as u16;
@@ -168,26 +210,36 @@ impl CPU6502 {
         self.P.set_V(!a & !b & c | a & b & !c);
         self.A = data as u8;
 
-        self.add_trace(format!("ADC ({:#04x} => {:#04x})", data, self.A));
+        //self.add_trace(format!("ADC ({:#04x} => {:#04x})\n", data, self.A));
+        state.A = self.A;
+        self.add_trace(state);
     }
 
-    fn sbc(&mut self, data: u8){
+    fn sbc(&mut self, mut state: CPUState, value: u8){
         if self.P.get_D(){
-            self.add_trace("SBC\n".to_owned());
-            self.show_cpu_debug();
-            todo!("Decimal!");
-        }
-        self.adc(!data);
+            let lowv = value & 0x0f;
+            let lowa = self.A & 0x0f;
 
-        self.add_trace(format!("SBC ({:#04x} => {:#04x})", data, self.A));
+            let highv = value >> 4;
+            let higha = self.A >> 4;
+
+            state.op1 = value;
+            state.A = self.A;
+            self.add_trace(state);
+            return;
+        }
+
+        self.adc(state, !value);
+
+        //self.add_trace(format!("SBC ({:#04x} => {:#04x})\n", value, self.A));
     }
 
-    fn add_trace(&mut self, string: String){
+    fn add_trace(&mut self, state: CPUState){
         if let Some(buf) = self.trace.as_mut(){
             if buf.len() == self.trace_line_limit{
                 buf.pop_front();
             }
-            buf.push_back(string);
+            buf.push_back(state);
         }
     }
 
@@ -215,63 +267,63 @@ impl CPU6502 {
                 let addr = self.memory.read_memory(self.PC);
                 self.PC += 1;
                 let ret = addr as u16;
-                self.add_trace(format!("Address=0x{:04x} ", ret));
+                //self.add_trace(format!("Address=0x{:04x} ", ret));
                 ret
             }
             AdressingType::ZeroPageX => {
                 let addr = self.memory.read_memory(self.PC).overflowing_add(self.X).0;
                 self.PC += 1;
                 let ret = addr as u16;
-                self.add_trace(format!("Address=0x{:04x} ", ret));
+                //self.add_trace(format!("Address=0x{:04x} ", ret));
                 ret
             }
             AdressingType::ZeroPageY => {
                 let addr = self.memory.read_memory(self.PC).overflowing_add(self.Y).0;
                 self.PC += 1;
                 let ret = addr as u16;
-                self.add_trace(format!("Address=0x{:04x} ", ret));
+                //self.add_trace(format!("Address=0x{:04x} ", ret));
                 ret
             }
             AdressingType::Absolute => {
                 let ret = self.memory.read_memory_word(self.PC);
                 self.PC += 2;
-                self.add_trace(format!("Address={:#06x} ", ret as u16));
+                //self.add_trace(format!("Address={:#06x} ", ret as u16));
                 ret
             }
             AdressingType::AbsoluteX => {
                 let ret = self.memory.read_memory_word(self.PC).overflowing_add(self.X as u16).0;
                 self.PC += 2;
-                self.add_trace(format!("Address={:#06x} ", ret as u16));
+                //self.add_trace(format!("Address={:#06x} ", ret as u16));
                 ret
             }
             AdressingType::AbsoluteY => {
                 let ret = self.memory.read_memory_word(self.PC).overflowing_add(self.Y as u16).0;
                 self.PC += 2;
-                self.add_trace(format!("Address={:#06x} ", ret as u16));
+                //self.add_trace(format!("Address={:#06x} ", ret as u16));
                 ret
             }
             AdressingType::Indirect => {
                 let addr1 = self.memory.read_memory_word(self.PC);
                 self.PC += 2;
-                self.add_trace(format!("Address1={:#06x}", addr1 as u16));
+                //self.add_trace(format!("Address1={:#06x}", addr1 as u16));
                 let ret = self.memory.read_memory_word(addr1);
-                self.add_trace(format!(" Address={:#06x} ", ret as u16));
+                //self.add_trace(format!(" Address={:#06x} ", ret as u16));
                 ret
             }
             AdressingType::IndirectX => {
                 let addr1 = self.memory.read_memory(self.PC).overflowing_add(self.X.into()).0;
                 self.PC += 1;
-                self.add_trace(format!("Address1={:#06x}", addr1 as u16));
+                //self.add_trace(format!("Address1={:#06x}", addr1 as u16));
                 let ret = self.memory.read_memory_word(addr1 as u16);
-                self.add_trace(format!(" Address={:#06x} ", ret as u16));
+                //self.add_trace(format!(" Address={:#06x} ", ret as u16));
                 ret
             }
             AdressingType::IndirectY => {
                 let addr1 = self.memory.read_memory(self.PC);
                 self.PC += 1;
-                self.add_trace(format!("Address1={:#06x}", addr1 as u16));
+                //self.add_trace(format!("Address1={:#06x}", addr1 as u16));
                 let ret = self.memory.read_memory_word(addr1 as u16).overflowing_add(self.Y as u16);
-                self.add_trace(format!(" Address={:#06x}", ret.0));
+                //self.add_trace(format!(" Address={:#06x}", ret.0));
                 ret.0
             }
         }
@@ -279,7 +331,9 @@ impl CPU6502 {
 
     pub fn run_single(&mut self) -> Result<(), CpuError>{
         let ins = self.memory.read_memory(self.PC);
-        self.add_trace(format!("Running INS={:#04x} PC={:#06x} ", ins, self.PC));
+        //self.add_trace(format!("Running INS={:#04x} PC={:#06x} ", ins, self.PC));
+        let mut cpu_state = CPUState::from_cpu(self, ins, 0, 0);
+        //build cpu state before we mess PC
         self.PC += 1;
 
         match ins {
@@ -2061,10 +2115,10 @@ mod tests{
                 Err(e) => {
                     cpu.show_cpu_debug();
                     println!("Error: {}", e);
-                    break;
+                    assert!(false);
                 }
             };
-            
+
             //cpu.memory.show_stack();
             //println!("CPU: {:?}", cpu);
             cnt += 1;

@@ -19,6 +19,8 @@ fn main() {
                     break;
                 }
             };
+            cnt += 1;
         }
-        cpu.show_trace();
+        println!("Run {} instructions", cnt);
+        cpu.show_cpu_debug();
 }
