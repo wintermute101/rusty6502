@@ -123,8 +123,8 @@ struct CPUState{
 }
 
 impl CPUState {
-    fn from_cpu(cpu: &CPU6502, ins: u8, op1: u8, op2: u8, adr: u16) -> Self{
-        CPUState { ins: ins, op1: op1, op2: op2, A: cpu.A, X: cpu.X, Y: cpu.Y, P: cpu.P, SP: cpu.SP, PC: cpu.PC, adr: adr }
+    fn new(cpu: &CPU6502, ins: u8) -> Self{
+        CPUState { ins: ins, op1: 0, op2: 0, A: cpu.A, X: cpu.X, Y: cpu.Y, P: cpu.P, SP: cpu.SP, PC: cpu.PC, adr: 0 }
     }
 }
 
@@ -332,15 +332,16 @@ impl CPU6502 {
     pub fn run_single(&mut self) -> Result<(), CpuError>{
         let ins = self.memory.read_memory(self.PC);
         //self.add_trace(format!("Running INS={:#04x} PC={:#06x} ", ins, self.PC));
-        let mut cpu_state = CPUState::from_cpu(self, ins, 0, 0);
+        let mut cpu_state = CPUState::new(self, ins);
         //build cpu state before we mess PC
         self.PC += 1;
 
         match ins {
             0x00 => { //BRK
                 self.PC += 1;
+                self.add_trace(cpu_state);
                 self.interrupt(InterruptType::BRK);
-                self.add_trace(format!("BRK\n"));
+                //self.add_trace(format!("BRK\n"));
             }
 
             0x01 => { //ORA IndirectX
@@ -348,7 +349,11 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A |= data;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("ORA IndirectX\n"));
+
+                cpu_state.A = self.A;
+                cpu_state.P = self.P;
+                self.add_trace(cpu_state);
+                //self.add_trace(format!("ORA IndirectX\n"));
             }
 
             0x05 => { //ORA ZeroPage
@@ -356,17 +361,27 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A |= data;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("ORA ZeroPage\n"));
+
+                cpu_state.A = self.A;
+                cpu_state.P = self.P;
+                self.add_trace(cpu_state);
+                //self.add_trace(format!("ORA ZeroPage\n"));
             }
 
             0x06 => { //ASL ZeroPage
                 let address = self.get_address(AdressingType::ZeroPage);
                 let mut data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 self.P.set_C(data & 0b1000_0000 != 0);
                 data = data << 1;
                 self.P.set_NZ(data);
                 self.memory.write_memory(address, data);
-                self.add_trace(format!("ASL ZeroPage\n"));
+
+                cpu_state.adr = address;
+                cpu_state.op2 = data;
+                cpu_state.P = self.P;
+                self.add_trace(cpu_state);
+                //self.add_trace(format!("ASL ZeroPage\n"));
             }
 
             0x08 => { //PHP
@@ -375,9 +390,14 @@ impl CPU6502 {
                 let r = self.SP.overflowing_sub(1);
                 self.SP = r.0;
                 if r.1{
-                    self.add_trace(format!("Stack Overflow!"));
+                    todo!("tracing or error on stack overflow?");
+                    //self.add_trace(format!("Stack Overflow!"));
                 }
-                self.add_trace(format!("PHP Pushed P={:#04x} ADDR={:#06x}\n", self.P.value, address));
+
+                cpu_state.adr = address;
+                cpu_state.SP = self.SP;
+                self.add_trace(cpu_state);
+                //self.add_trace(format!("PHP Pushed P={:#04x} ADDR={:#06x}\n", self.P.value, address));
             }
 
             0x09 => { //ORA Immediate
