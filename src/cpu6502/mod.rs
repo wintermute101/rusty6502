@@ -107,6 +107,7 @@ enum InterruptType {
     BRK,
 }
 
+#[derive(Clone)]
 #[allow(non_snake_case)]
 struct CPUState{
     ins: u8,
@@ -123,8 +124,173 @@ struct CPUState{
 }
 
 impl CPUState {
+
+    fn instruction_name(&self) -> String{
+        match self.ins{
+            0x00 => "BRK",
+            0x01 => "ORA IndirectX",
+            0x05 => "ORA ZeroPage",
+            0x06 => "ASL ZeroPage",
+            0x08 => "PHP",
+            0x09 => "ORA Immediate",
+            0x0a => "ASL Accumulator",
+            0x0d => "ORA Absolute",
+            0x0e => "ASL Absolute",
+            0x10 => "BPL",
+            0x11 => "ORA AbsoluteX",
+            0x15 => "ORA ZeroPageX",
+            0x16 => "ASL ZeroPageX",
+            0x18 => "CLC",
+            0x19 => "ORA AbsoluteY",
+            0x1d => "ORA AbsoluteX",
+            0x1e => "ASL AbsoluteX",
+            0x20 => "JSR",
+            0x21 => "AND IndirectX",
+            0x24 => "BIT ZeroPage",
+            0x25 => "AND ZeroPage",
+            0x26 => "ROL ZeroPage",
+            0x28 => "PLP",
+            0x29 => "AND Immidiate",
+            0x2a => "ROL Accumulator",
+            0x2c => "BIT Absolute",
+            0x2d => "AND Absolute",
+            0x2e => "ROL Absolute",
+            0x30 => "BMI Relative",
+            0x31 => "AND IndirectY",
+            0x35 => "AND ZeroPageX",
+            0x36 => "ROL ZeroPageX",
+            0x38 => "SEC",
+            0x39 => "AND AbsoluteY",
+            0x3d => "AND AbsoluteX",
+            0x3e => "ROL AbsoluteX",
+            0x40 => "RTI",
+            0x41 => "EOR IndirectX",
+            0x45 => "EOR ZeroPage",
+            0x46 => "LSR ZeroPage",
+            0x48 => "PHA",
+            0x49 => "EOR Immediate",
+            0x4a => "LSR Accumulator",
+            0x4c => "JMP Absolute",
+            0x4d => "EOR Absolute",
+            0x4e => "LSR Absolute",
+            0x50 => "BVC",
+            0x51 => "EOR IndirectY",
+            0x55 => "EOR ZeroPageX",
+            0x56 => "LSR ZeroPageX",
+            0x58 => "CLI",
+            0x59 => "EOR AbsoluteY",
+            0x5d => "EOR AbsoluteX",
+            0x5e => "LSR AbsoluteX",
+            0x60 => "RTS",
+            0x61 => "ADC IndirectX",
+            0x65 => "ADC ZeroPage",
+            0x66 => "ROR ZeroPage",
+            0x68 => "PLA",
+            0x69 => "ADC Immediate",
+            0x6a => "ROR Accumulator",
+            0x6c => "JMP Indirect",
+            0x6d => "ADC Absolute",
+            0x6e => "ROR Absolute",
+            0x70 => "BVS",
+            0x71 => "ADC IndirectY",
+            0x75 => "ADC ZeroPageX",
+            0x76 => "ROR ZeroPageX",
+            0x78 => "SEI",
+            0x79 => "ADC AbsoluteY",
+            0x7d => "ADC AbsoluteX",
+            0x7e => "ROR AbsoluteX",
+            0x81 => "STA IndirectX",
+            0x84 => "STY ZeroPage",
+            0x85 => "STA ZeroPage",
+            0x86 => "STX ZeroPage",
+            0x88 => "DEY",
+            0x8a => "TXA",
+            0x8c => "STY Absolute",
+            0x8d => "STA Absolute",
+            0x8e => "STX Absolute",
+            0x90 => "BCC",
+            0x91 => "STA IndirectY",
+            0x94 => "STY ZeroPageX",
+            0x95 => "STA ZeroPageX",
+            0x96 => "STX ZeroPageY",
+            0x98 => "TYA",
+            0x99 => "STA AbsoluteY",
+            0x9a => "TXS",
+            0x9d => "STA AbsoluteX",
+            0xa0 => "LDY Immediate",
+            0xa1 => "LDA IndirectX",
+            0xa2 => "LDX Immediate",
+            0xa4 => "LDY ZeroPage",
+            0xa5 => "LDA ZeroPage",
+            0xa6 => "LDX ZeroPage",
+            0xa8 => "TAY",
+            0xa9 => "LDA Immediate",
+            0xaa => "TAX",
+            0xac => "LDY Absolute",
+            0xad => "LDA Absolute",
+            0xae => "LDX Absolute",
+            0xb0 => "BCS",
+            0xb1 => "LDA IndirectY",
+            0xb4 => "LDY ZeroPageX",
+            0xb5 => "LDA ZeroPageX",
+            0xb6 => "LDX ZeroPageY",
+            0xb8 => "CLV",
+            0xb9 => "LDA AbsoluteY",
+            0xba => "TSX",
+            0xbc => "LDY AbsoluteX",
+            0xbd => "LDA AbsoluteX",
+            0xbe => "LDX AbsoluteY",
+            0xc0 => "CPY Immediate",
+            0xc1 => "CMP IndirectX",
+            0xc4 => "CPY ZeroPage",
+            0xc5 => "CMP ZeroPage",
+            0xc6 => "DEC ZeroPage",
+            0xc8 => "INY",
+            0xc9 => "CMP Immediate",
+            0xca => "DEX",
+            0xcc => "CPY Absolute",
+            0xcd => "CMP Absolute",
+            0xce => "DEC Absolute",
+            0xd0 => "BNE Relative",
+            0xd1 => "CMP IndirectY",
+            0xd5 => "CMP ZeroPageX",
+            0xd6 => "DEC ZeroPageX",
+            0xd8 => "CLD",
+            0xd9 => "CMP AbsoluteY",
+            0xdd => "CMP AbsoluteX",
+            0xde => "DEC AbsoluteX",
+            0xe0 => "CPX Immediate",
+            0xe1 => "SBC IndirectX",
+            0xe4 => "CPX ZeroPage",
+            0xe5 => "SBC ZeroPage",
+            0xe6 => "INC ZeroPage",
+            0xe8 => "INX",
+            0xe9 => "SBC Immidiate",
+            0xea => "NOP",
+            0xec => "CPX Absolute",
+            0xed => "SBC Absolute",
+            0xee => "INC Absolute",
+            0xf0 => "BEQ Relative",
+            0xf1 => "SBC IndirectY",
+            0xf5 => "SBC ZeroPageX",
+            0xf6 => "INC ZeroPageX",
+            0xf8 => "SED",
+            0xf9 => "SBC AbsoluteY",
+            0xfd => "SBC AbsoluteX",
+            0xfe => "INC AbsoluteX",
+            _    => "INV Invalid"
+        }.to_owned()
+    }
+
     fn new(cpu: &CPU6502, ins: u8) -> Self{
         CPUState { ins: ins, op1: 0, op2: 0, A: cpu.A, X: cpu.X, Y: cpu.Y, P: cpu.P, SP: cpu.SP, PC: cpu.PC, adr: 0 }
+    }
+}
+
+impl std::fmt::Debug for CPUState{
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error>{
+        fmt.write_str(&format!("INS={:#04x} A={:#04x} X={:#04x} Y={:#04x} P={:?} SP={:#04x} PC={:#06x} OP1={:#04x} OP2={:#04x} ADDR={:#06x} {}\n",
+        self.ins, self.A, self.X, self.Y, self.P, self.SP, self.PC, self.op1, self.op2, self.adr, self.instruction_name()))
     }
 }
 
@@ -193,7 +359,6 @@ impl CPU6502 {
             self.P.set_C(highv + higha + rem > 9);
             self.A = (lowa + lowv + self.P.get_C() as u8) % 10 | ((higha + highv + rem) % 10 << 4);
 
-            //self.add_trace(format!("ADC ({:#04x} => {:#04x})\n", value, self.A));
             state.A = self.A;
             self.add_trace(state);
             return;
@@ -210,7 +375,7 @@ impl CPU6502 {
         self.P.set_V(!a & !b & c | a & b & !c);
         self.A = data as u8;
 
-        //self.add_trace(format!("ADC ({:#04x} => {:#04x})\n", data, self.A));
+        state.P = self.P;
         state.A = self.A;
         self.add_trace(state);
     }
@@ -230,8 +395,6 @@ impl CPU6502 {
         }
 
         self.adc(state, !value);
-
-        //self.add_trace(format!("SBC ({:#04x} => {:#04x})\n", value, self.A));
     }
 
     fn add_trace(&mut self, state: CPUState){
@@ -247,7 +410,7 @@ impl CPU6502 {
         if let Some(buf) = self.trace.as_ref(){
             println!("****  Trace   ****");
             for i in buf{
-                print!("{}", i);
+                print!("{:?}", i);
             }
         }
     }
@@ -267,63 +430,51 @@ impl CPU6502 {
                 let addr = self.memory.read_memory(self.PC);
                 self.PC += 1;
                 let ret = addr as u16;
-                //self.add_trace(format!("Address=0x{:04x} ", ret));
                 ret
             }
             AdressingType::ZeroPageX => {
                 let addr = self.memory.read_memory(self.PC).overflowing_add(self.X).0;
                 self.PC += 1;
                 let ret = addr as u16;
-                //self.add_trace(format!("Address=0x{:04x} ", ret));
                 ret
             }
             AdressingType::ZeroPageY => {
                 let addr = self.memory.read_memory(self.PC).overflowing_add(self.Y).0;
                 self.PC += 1;
                 let ret = addr as u16;
-                //self.add_trace(format!("Address=0x{:04x} ", ret));
                 ret
             }
             AdressingType::Absolute => {
                 let ret = self.memory.read_memory_word(self.PC);
                 self.PC += 2;
-                //self.add_trace(format!("Address={:#06x} ", ret as u16));
                 ret
             }
             AdressingType::AbsoluteX => {
                 let ret = self.memory.read_memory_word(self.PC).overflowing_add(self.X as u16).0;
                 self.PC += 2;
-                //self.add_trace(format!("Address={:#06x} ", ret as u16));
                 ret
             }
             AdressingType::AbsoluteY => {
                 let ret = self.memory.read_memory_word(self.PC).overflowing_add(self.Y as u16).0;
                 self.PC += 2;
-                //self.add_trace(format!("Address={:#06x} ", ret as u16));
                 ret
             }
             AdressingType::Indirect => {
                 let addr1 = self.memory.read_memory_word(self.PC);
                 self.PC += 2;
-                //self.add_trace(format!("Address1={:#06x}", addr1 as u16));
                 let ret = self.memory.read_memory_word(addr1);
-                //self.add_trace(format!(" Address={:#06x} ", ret as u16));
                 ret
             }
             AdressingType::IndirectX => {
                 let addr1 = self.memory.read_memory(self.PC).overflowing_add(self.X.into()).0;
                 self.PC += 1;
-                //self.add_trace(format!("Address1={:#06x}", addr1 as u16));
                 let ret = self.memory.read_memory_word(addr1 as u16);
-                //self.add_trace(format!(" Address={:#06x} ", ret as u16));
                 ret
             }
             AdressingType::IndirectY => {
                 let addr1 = self.memory.read_memory(self.PC);
                 self.PC += 1;
-                //self.add_trace(format!("Address1={:#06x}", addr1 as u16));
                 let ret = self.memory.read_memory_word(addr1 as u16).overflowing_add(self.Y as u16);
-                //self.add_trace(format!(" Address={:#06x}", ret.0));
                 ret.0
             }
         }
@@ -331,7 +482,6 @@ impl CPU6502 {
 
     pub fn run_single(&mut self) -> Result<(), CpuError>{
         let ins = self.memory.read_memory(self.PC);
-        //self.add_trace(format!("Running INS={:#04x} PC={:#06x} ", ins, self.PC));
         let mut cpu_state = CPUState::new(self, ins);
         //build cpu state before we mess PC
         self.PC += 1;
@@ -341,7 +491,7 @@ impl CPU6502 {
                 self.PC += 1;
                 self.add_trace(cpu_state);
                 self.interrupt(InterruptType::BRK);
-                //self.add_trace(format!("BRK\n"));
+
             }
 
             0x01 => { //ORA IndirectX
@@ -353,7 +503,6 @@ impl CPU6502 {
                 cpu_state.A = self.A;
                 cpu_state.P = self.P;
                 self.add_trace(cpu_state);
-                //self.add_trace(format!("ORA IndirectX\n"));
             }
 
             0x05 => { //ORA ZeroPage
@@ -365,7 +514,6 @@ impl CPU6502 {
                 cpu_state.A = self.A;
                 cpu_state.P = self.P;
                 self.add_trace(cpu_state);
-                //self.add_trace(format!("ORA ZeroPage\n"));
             }
 
             0x06 => { //ASL ZeroPage
@@ -381,7 +529,6 @@ impl CPU6502 {
                 cpu_state.op2 = data;
                 cpu_state.P = self.P;
                 self.add_trace(cpu_state);
-                //self.add_trace(format!("ASL ZeroPage\n"));
             }
 
             0x08 => { //PHP
@@ -389,15 +536,10 @@ impl CPU6502 {
                 self.memory.write_memory(address, self.P.value | 0b0011_0000); //push brk and ignored as 1
                 let r = self.SP.overflowing_sub(1);
                 self.SP = r.0;
-                if r.1{
-                    todo!("tracing or error on stack overflow?");
-                    //self.add_trace(format!("Stack Overflow!"));
-                }
 
                 cpu_state.adr = address;
                 cpu_state.SP = self.SP;
                 self.add_trace(cpu_state);
-                //self.add_trace(format!("PHP Pushed P={:#04x} ADDR={:#06x}\n", self.P.value, address));
             }
 
             0x09 => { //ORA Immediate
@@ -405,7 +547,11 @@ impl CPU6502 {
                 self.PC += 1;
                 self.A |= data;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("ORA Immediate\n"));
+
+                cpu_state.A = self.A;
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                self.add_trace(cpu_state);
             }
 
             0x0a => { //ASL Accumulator
@@ -414,7 +560,9 @@ impl CPU6502 {
                 data = data << 1;
                 self.P.set_NZ(data);
                 self.A = data;
-                self.add_trace(format!("ASL Accumulator\n"));
+
+                cpu_state.A = data;
+                self.add_trace(cpu_state);
             }
 
             0x0d => { //ORA Absolute
@@ -422,32 +570,41 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A |= data;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("ORA Absolute\n"));
+
+                cpu_state.A = self.A;
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x0e => { //ASL Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 let mut data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 self.P.set_C(data & 0b1000_0000 != 0);
                 data = data << 1;
                 self.P.set_NZ(data);
                 self.memory.write_memory(address, data);
-                self.add_trace(format!("ASL Absolute\n"));
+
+                cpu_state.P = self.P;
+                cpu_state.op2 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x10 => { //BPL
                 let data = self.memory.read_memory(self.PC) as i8;
                 self.PC += 1;
-                
+
                 if !self.P.get_N(){
                     let r = (self.PC as i16).overflowing_add(data as i16);
-                    self.add_trace(format!("Branch to PC={:#06x} ", r.0));
                     self.PC = r.0 as u16;
+                    cpu_state.adr = self.PC;
                 }
-                else {
-                    self.add_trace(format!("NOT Branching "));
-                }
-                self.add_trace(format!("BPL Relative [{}]\n", data));
+
+                cpu_state.op1 = data as u8;
+                self.add_trace(cpu_state);
             }
 
             0x11 => { //ORA AbsoluteX
@@ -455,7 +612,13 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A |= data;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("ORA IndirectY\n"));
+
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.A = self.A;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x15 => { //ORA ZeroPageX
@@ -463,30 +626,46 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A |= data;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("ORA ZeroPageX\n"));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.A = self.A;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x16 => { //ASL ZeroPageX
                 let address = self.get_address(AdressingType::ZeroPageX);
                 let mut data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 self.P.set_C(data & 0b1000_0000 != 0);
                 data = data << 1;
                 self.P.set_NZ(data);
                 self.memory.write_memory(address, data);
-                self.add_trace(format!("ASL ZeroPageX\n"));
+
+                cpu_state.P = self.P;
+                cpu_state.op2 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x18 => { //CLC
                 self.P.set_C(false);
-                self.add_trace(format!("CLC\n"));
+
+                cpu_state.P = self.P;
+                self.add_trace(cpu_state);
             }
 
             0x19 => { //ORA AbsoluteY
                 let address = self.get_address(AdressingType::AbsoluteY);
                 let data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 self.A |= data;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("ORA AbsoluteY\n"));
+
+                cpu_state.P = self.P;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x1d => { //ORA AbsoluteX
@@ -494,17 +673,27 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A |= data;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("ORA AbsoluteX\n"));
+
+                cpu_state.P = self.P;
+                cpu_state.adr = address;
+                cpu_state.A = self.A;
+                cpu_state.op1 = data;
+                self.add_trace(cpu_state);
             }
 
             0x1e => { //ASL AbsoluteX
                 let address = self.get_address(AdressingType::AbsoluteX);
                 let mut data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 self.P.set_C(data & 0b1000_0000 != 0);
                 data = data << 1;
                 self.P.set_NZ(data);
                 self.memory.write_memory(address, data);
-                self.add_trace(format!("ASL AbsoluteX\n"));
+
+                cpu_state.P = self.P;
+                cpu_state.adr = address;
+                cpu_state.op2 = data;
+                self.add_trace(cpu_state);
             }
 
             0x20 => { //JSR
@@ -516,7 +705,11 @@ impl CPU6502 {
                 let sp = 0x0100 | self.SP as u16;
                 self.SP = self.SP.overflowing_sub(1).0;
                 self.memory.write_memory(sp, (pc & 0x0ff) as u8);
-                self.add_trace(format!("JSR {:#06x} PC={:#06x}\n", address, self.PC));
+
+                cpu_state.P = self.P;
+                cpu_state.adr = address;
+                cpu_state.SP = self.SP;
+                self.add_trace(cpu_state);
                 self.PC = address;
             }
 
@@ -525,7 +718,12 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A & data;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("AND IndirectX ({:#04x} => {:#04x})\n", data, self.A));
+
+                cpu_state.P = self.P;
+                cpu_state.adr = address;
+                cpu_state.op1 = data;
+                cpu_state.A = self.A;
+                self.add_trace(cpu_state);
             }
 
             0x24 => { //BIT ZeroPage
@@ -535,7 +733,10 @@ impl CPU6502 {
                 self.P.set_Z(res == 0);
                 self.P.value = (self.P.value & 0b0011_1111) | (data & 0b1100_0000);
 
-                self.add_trace(format!("BIT ZeroPage\n"));
+                cpu_state.P = self.P;
+                cpu_state.adr = address;
+                cpu_state.op1 = data;
+                self.add_trace(cpu_state);
             }
 
             0x25 => { //AND ZeroPage
@@ -543,30 +744,40 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A & data;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("AND ZeroPage ({:#04x} => {:#04x})\n", data, self.A));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.A = self.A;
+                cpu_state.adr = address;
             }
 
             0x26 => { //ROL ZeroPage
                 let address = self.get_address(AdressingType::ZeroPage);
                 let mut data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 let c = self.A & 0b1000_0000 != 0;
                 data = data << 1 | (self.P.get_C() as u8);
                 self.P.set_C(c);
                 self.P.set_NZ(data);
                 self.memory.write_memory(address, data);
-                self.add_trace(format!("ROL ZeroPage\n"));   
+
+                cpu_state.P = self.P;
+                cpu_state.adr = address;
+                cpu_state.op2 = data;
+                self.add_trace(cpu_state);
             }
 
             0x28 => { //PLP
                 let r = self.SP.overflowing_add(1);
                 self.SP = r.0;
-                if r.1{
-                    self.add_trace(format!("Stack Overflow!\n"));
-                }
                 let address = 0x0100 | self.SP as u16;
                 let data = self.memory.read_memory(address);
                 self.P.value = data & 0b1100_1111; //ignore B and bit 5
-                self.add_trace(format!("PLP Pop P={:#04x} ADDR={:#06x}\n", self.P.value, address));
+
+                cpu_state.P = self.P;
+                cpu_state.adr = address;
+                cpu_state.SP = self.SP;
+                self.add_trace(cpu_state);
             }
 
             0x29 => { //AND Immidiate
@@ -574,7 +785,11 @@ impl CPU6502 {
                 self.PC += 1;
                 self.A = self.A & data;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("AND AbsoluteY ({:#04x} => {:#04x})\n", data, self.A));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.A = self.A;
+                self.add_trace(cpu_state);
             }
 
             0x2a => { //ROL Accumulator
@@ -583,7 +798,10 @@ impl CPU6502 {
                 self.P.set_C(self.A & 0b1000_0000 != 0);
                 self.P.set_NZ(data);
                 self.A = data;
-                self.add_trace(format!("ROL Accumulator\n"));   
+
+                cpu_state.P = self.P;
+                cpu_state.A = self.A;
+                self.add_trace(cpu_state);
             }
 
             0x2c => { //BIT Absolute
@@ -593,7 +811,11 @@ impl CPU6502 {
                 self.P.set_Z(res == 0);
                 self.P.value = (self.P.value & 0b0011_1111) | (data & 0b1100_0000);
 
-                self.add_trace(format!("BIT Absolute\n"));
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.A = self.A;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x2d => { //AND Absolute
@@ -601,17 +823,27 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A & data;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("AND Absolute ({:#04x} => {:#04x})\n", data, self.A));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.A = self.A;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x2e => { //ROL Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 let mut data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 data = data << 1 | (self.P.get_C() as u8);
                 self.P.set_C(self.A & 0b1000_0000 != 0);
                 self.P.set_NZ(data);
                 self.memory.write_memory(address, data);
-                self.add_trace(format!("ROL Absolute\n"));   
+
+                cpu_state.P = self.P;
+                cpu_state.op2 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x30 => { //BMI Relative
@@ -620,13 +852,12 @@ impl CPU6502 {
 
                 if self.P.get_N(){
                     let r = (self.PC as i16).overflowing_add(data as i16);
-                    self.add_trace(format!("Branch to PC={:#06x} ", r.0));
-                    self.PC = r.0 as u16;
+                                        self.PC = r.0 as u16;
+                    cpu_state.adr = self.PC;
                 }
-                else {
-                    self.add_trace(format!("NOT Branching "));
-                }
-                self.add_trace(format!("BMI Relative [{}]\n", data));
+
+                cpu_state.op1 = data as u8;
+                self.add_trace(cpu_state);
             }
 
             0x31 => { //AND IndirectY
@@ -634,7 +865,12 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A & data;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("AND IndirectY ({:#04x} => {:#04x})\n", data, self.A));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.A = self.A;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x35 => { //AND ZeroPageX
@@ -642,22 +878,34 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A & data;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("AND ZeroPageX ({:#04x} => {:#04x})\n", data, self.A));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.A = self.A;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x36 => { //ROL ZeroPageX
                 let address = self.get_address(AdressingType::ZeroPageX);
                 let mut data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 data = data << 1 | (self.P.get_C() as u8);
                 self.P.set_C(self.A & 0b1000_0000 != 0);
                 self.P.set_NZ(data);
                 self.memory.write_memory(address, data);
-                self.add_trace(format!("ROL ZeroPageX\n"));   
+
+                cpu_state.P = self.P;
+                cpu_state.op2 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x38 => { //SEC
                 self.P.set_C(true);
-                self.add_trace(format!("SEC\n"));
+
+                cpu_state.P = self.P;
+                self.add_trace(cpu_state);
             }
 
             0x39 => { //AND AbsoluteY
@@ -665,7 +913,12 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A & data;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("AND AbsoluteY ({:#04x} => {:#04x})\n", data, self.A));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.A = self.A;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x3d => { //AND AbsoluteX
@@ -673,17 +926,28 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A & data;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("AND AbsoluteX ({:#04x} => {:#04x})\n", data, self.A));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.A = self.A;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x3e => { //ROL AbsoluteX
                 let address = self.get_address(AdressingType::AbsoluteX);
                 let mut data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 data = data << 1 | (self.P.get_C() as u8);
                 self.P.set_C(self.A & 0b1000_0000 != 0);
                 self.P.set_NZ(data);
                 self.memory.write_memory(address, data);
-                self.add_trace(format!("ROL AbsoluteX\n"));   
+
+                cpu_state.P = self.P;
+                cpu_state.op2 = data;
+                cpu_state.A = self.A;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x40 => { //RTI
@@ -696,7 +960,11 @@ impl CPU6502 {
                 let addr = self.memory.read_memory_word(sp);
                 self.SP = self.SP.overflowing_add(1).0;
                 self.PC = addr;
-                self.add_trace(format!("RTI {:#06x}\n", addr));
+
+                cpu_state.SP = self.SP;
+                cpu_state.adr = addr;
+                cpu_state.P = self.P;
+                self.add_trace(cpu_state);
             }
 
             0x41 => { //EOR IndirectX
@@ -704,7 +972,12 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A ^ data;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("EOR IndirectX ({:#04x} => {:#04x})\n", data, self.A));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.A = self.A;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x45 => { //EOR ZeroPage
@@ -712,17 +985,27 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A ^ data;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("EOR ZeroPage ({:#04x} => {:#04x})\n", data, self.A));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.A = self.A;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x46 => { //LSR ZeroPage
                 let address = self.get_address(AdressingType::ZeroPage);
                 let mut data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 self.P.set_C(data & 0b0000_0001 != 0);
                 data = data >> 1;
                 self.memory.write_memory(address, data);
                 self.P.set_NZ(data);
-                self.add_trace(format!("LSR ZeroPage\n"));
+
+                cpu_state.P = self.P;
+                cpu_state.op2 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x48 => { //PHA
@@ -730,10 +1013,11 @@ impl CPU6502 {
                 self.memory.write_memory(address, self.A);
                 let r = self.SP.overflowing_sub(1);
                 self.SP = r.0;
-                if r.1{
-                    self.add_trace(format!("Stack Overflow!\n"));
-                }
-                self.add_trace(format!("PHA Pushed A={:#04x} ADDR={:#06x}\n", self.A, address));
+
+                cpu_state.adr = address;
+                cpu_state.SP = self.SP;
+                self.add_trace(cpu_state);
+
             }
 
             0x49 => { //EOR Immediate
@@ -741,7 +1025,11 @@ impl CPU6502 {
                 self.PC += 1;
                 self.A = self.A ^ data;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("EOR Immediate ({:#04x} => {:#04x})\n", data, self.A));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.A = self.A;
+                self.add_trace(cpu_state);
             }
 
             0x4a => { //LSR Accumulator
@@ -750,13 +1038,18 @@ impl CPU6502 {
                 data = data >> 1;
                 self.A = data;
                 self.P.set_NZ(data);
-                self.add_trace(format!("LSR Accumulator\n"));
+
+                cpu_state.P = self.P;
+                cpu_state.A = self.A;
+                self.add_trace(cpu_state);
             }
 
             0x4c => { //JMP Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 self.PC = address;
-                self.add_trace(format!("JMP Absolute\n"));
+
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x4d => { //EOR Absolute
@@ -764,17 +1057,27 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A ^ data;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("EOR Absolute ({:#04x} => {:#04x})\n", data, self.A));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.A = self.A;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x4e => { //LSR Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 let mut data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 self.P.set_C(data & 0b0000_0001 != 0);
                 data = data >> 1;
                 self.memory.write_memory(address, data);
                 self.P.set_NZ(data);
-                self.add_trace(format!("LSR Absolute\n"));
+
+                cpu_state.P = self.P;
+                cpu_state.op2 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x50 => { //BVC
@@ -782,13 +1085,12 @@ impl CPU6502 {
                 self.PC += 1;
                 if !self.P.get_V(){
                     let r = (self.PC as i16).overflowing_add(data as i16);
-                    self.add_trace(format!("Branch to PC={:#06x} ", r.0));
                     self.PC = r.0 as u16;
+                    cpu_state.adr = self.PC;
                 }
-                else {
-                    self.add_trace(format!("NOT Branching "));
-                }
-                self.add_trace(format!("BVC Relative [{}]\n", data));
+
+                cpu_state.op1 = data as u8;
+                self.add_trace(cpu_state);
             }
 
             0x51 => { //EOR IndirectY
@@ -796,7 +1098,12 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A ^ data;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("EOR IndirectY ({:#04x} => {:#04x})\n", data, self.A));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.A = self.A;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x55 => { //EOR ZeroPageX
@@ -804,22 +1111,34 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A ^ data;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("EOR ZeroPageX ({:#04x} => {:#04x})\n", data, self.A));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.A = self.A;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x56 => { //LSR ZeroPageX
                 let address = self.get_address(AdressingType::ZeroPageX);
                 let mut data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 self.P.set_C(data & 0b0000_0001 != 0);
                 data = data >> 1;
                 self.memory.write_memory(address, data);
                 self.P.set_NZ(data);
-                self.add_trace(format!("LSR ZeroPageX\n"));
+
+                cpu_state.P = self.P;
+                cpu_state.op2 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x58 => { //CLI
                 self.P.set_I(false);
-                self.add_trace(format!("CLI\n"));
+
+                cpu_state.P = self.P;
+                self.add_trace(cpu_state);
             }
 
             0x59 => { //EOR AbsoluteY
@@ -827,7 +1146,12 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A ^ data;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("EOR AbsoluteY ({:#04x} => {:#04x})\n", data, self.A));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.A = self.A;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x5d => { //EOR AbsoluteX
@@ -835,17 +1159,27 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = self.A ^ data;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("EOR AbsoluteX ({:#04x} => {:#04x})\n", data, self.A));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.A = self.A;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x5e => { //LSR AbsoluteX
                 let address = self.get_address(AdressingType::AbsoluteX);
                 let mut data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 self.P.set_C(data & 0b0000_0001 != 0);
                 data = data >> 1;
                 self.memory.write_memory(address, data);
                 self.P.set_NZ(data);
-                self.add_trace(format!("LSR AbsoluteX\n"));
+
+                cpu_state.P = self.P;
+                cpu_state.op2 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x60 => { //RTS
@@ -854,49 +1188,63 @@ impl CPU6502 {
                 let addr = self.memory.read_memory_word(sp).overflowing_add(1).0;
                 self.SP = self.SP.overflowing_add(1).0;
                 self.PC = addr;
-                self.add_trace(format!("RTS {:#06x}\n", addr));
+
+                cpu_state.P = self.P;
+                cpu_state.SP = self.SP;
+                cpu_state.adr = addr;
+                self.add_trace(cpu_state);
             }
 
             0x61 => { //ADC IndirectX
                 let address = self.get_address(AdressingType::IndirectX);
                 let data = self.memory.read_memory(address);
-                self.adc(data);
+                cpu_state.adr = address;
+                self.adc(cpu_state, data);
             }
 
             0x65 => { //ADC ZeroPage
                 let address = self.get_address(AdressingType::ZeroPage);
                 let data = self.memory.read_memory(address);
-                self.adc(data);
+                cpu_state.adr = address;
+                self.adc(cpu_state, data);
             }
 
             0x66 => { //ROR ZeroPage
                 let address = self.get_address(AdressingType::ZeroPage);
                 let mut data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 let c = data & 0b0000_0001 != 0;
                 data = data >> 1 | ((self.P.get_C() as u8) << 7);
                 self.P.set_C(c);
                 self.P.set_NZ(data);
                 self.memory.write_memory(address, data);
-                self.add_trace(format!("ROR ZeroPage\n"));   
+
+                cpu_state.P = self.P;
+                cpu_state.op2 = data;
+                cpu_state.A = self.A;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x68 => {  //PLA
                 let r = self.SP.overflowing_add(1);
                 self.SP = r.0;
-                if r.1{
-                    self.add_trace(format!("Stack Overflow!\n"));
-                }
                 let address = 0x0100 | self.SP as u16;
                 let data = self.memory.read_memory(address);
                 self.A = data;
                 self.P.set_NZ(data);
-                self.add_trace(format!("PLA Pop A={:#04x} ADDR={:#06x}\n", data, address));
+
+                cpu_state.P = self.P;
+                cpu_state.A = self.A;
+                cpu_state.adr = address;
+                cpu_state.SP = self.SP;
+                self.add_trace(cpu_state);
             }
 
             0x69 => { //ADC Immediate
                 let data = self.memory.read_memory(self.PC);
                 self.PC += 1;
-                self.adc(data);
+                self.adc(cpu_state, data);
             }
 
             0x6a => { //ROR Accumulator
@@ -905,150 +1253,196 @@ impl CPU6502 {
                 self.P.set_C(self.A & 0b0000_0001 != 0);
                 self.P.set_NZ(data);
                 self.A = data;
-                self.add_trace(format!("ROR Accumulator\n"));   
+
+                cpu_state.P = self.P;
+                cpu_state.A = self.A;
+                self.add_trace(cpu_state);
             }
 
             0x6c => { //JMP Indirect
                 let address = self.get_address(AdressingType::Indirect);
                 self.PC = address;
-                self.add_trace(format!("JMP Indirect PC={:#06x}\n", address));
+
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x6d => { //ADC Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 let data = self.memory.read_memory(address);
-                self.adc(data);
+                cpu_state.adr = address;
+                self.adc(cpu_state, data);
             }
 
             0x6e => { //ROR Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 let mut data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 let c = data & 0b0000_0001 != 0;
                 data = data >> 1 | ((self.P.get_C() as u8) << 7);
                 self.P.set_C(c);
                 self.P.set_NZ(data);
                 self.memory.write_memory(address, data);
-                self.add_trace(format!("ROR Absolute\n"));   
+
+                cpu_state.P = self.P;
+                cpu_state.op2 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x70 => { //BVS
                 let data = self.memory.read_memory(self.PC) as i8;
                 self.PC += 1;
-                
+
                 if self.P.get_V(){
                     let r = (self.PC as i16).overflowing_add(data as i16);
-                    self.add_trace(format!("Branch to PC={:#06x} ", r.0));
                     self.PC = r.0 as u16;
+                    cpu_state.adr = self.PC;
                 }
-                else {
-                    self.add_trace(format!("NOT Branching "));
-                }
-                self.add_trace(format!("BVS Relative [{}]\n", data));
+
+                cpu_state.op1 = data as u8;
+                self.add_trace(cpu_state);
             }
 
             0x71 => { //ADC IndirectY
                 let address = self.get_address(AdressingType::IndirectY);
                 let data = self.memory.read_memory(address);
-                self.adc(data);
+                cpu_state.adr = address;
+                self.adc(cpu_state, data);
             }
 
             0x75 => { //ADC ZeroPageX
                 let address = self.get_address(AdressingType::ZeroPageX);
                 let data = self.memory.read_memory(address);
-                self.adc(data);
+                cpu_state.adr = address;
+                self.adc(cpu_state, data);
             }
 
             0x76 => { //ROR ZeroPageX
                 let address = self.get_address(AdressingType::ZeroPageX);
                 let mut data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 let c = data & 0b0000_0001 != 0;
                 data = data >> 1 | ((self.P.get_C() as u8) << 7);
                 self.P.set_C(c);
                 self.P.set_NZ(data);
                 self.memory.write_memory(address, data);
-                self.add_trace(format!("ROR ZeroPageX\n"));   
+
+                cpu_state.P = self.P;
+                cpu_state.op2 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x78 => { //SEI
                 self.P.set_I(true);
-                self.add_trace(format!("SEI\n"));
+
+                cpu_state.P = self.P;
+                self.add_trace(cpu_state);
             }
 
             0x79 => { //ADC AbsoluteY
                 let address = self.get_address(AdressingType::AbsoluteY);
                 let data = self.memory.read_memory(address);
-                self.adc(data);
+                cpu_state.adr = address;
+                self.adc(cpu_state, data);
             }
 
             0x7d => { //ADC AbsoluteX
                 let address = self.get_address(AdressingType::AbsoluteX);
                 let data = self.memory.read_memory(address);
-                self.adc(data);
+                cpu_state.adr = address;
+                self.adc(cpu_state, data);
             }
 
             0x7e => { //ROR AbsoluteX
                 let address = self.get_address(AdressingType::AbsoluteX);
                 let mut data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 let c = data & 0b0000_0001 != 0;
                 data = data >> 1 | ((self.P.get_C() as u8) << 7);
                 self.P.set_C(c);
                 self.P.set_NZ(data);
                 self.memory.write_memory(address, data);
-                self.add_trace(format!("ROR AbsoluteX\n"));
+
+                cpu_state.P = self.P;
+                cpu_state.op2 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x81 => { //STA IndirectX
                 let address = self.get_address(AdressingType::IndirectX);
                 self.memory.write_memory(address, self.A);
-                self.add_trace(format!("STA IndirectX ({:#04x})\n", self.A));
+
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x84 => { //STY ZeroPage
                 let address = self.get_address(AdressingType::ZeroPage);
                 self.memory.write_memory(address, self.Y);
-                self.add_trace(format!("STY ZeroPage ({:#04x})\n", self.A));
+
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x85 => { //STA ZeroPage
                 let address = self.get_address(AdressingType::ZeroPage);
                 self.memory.write_memory(address, self.A);
-                self.add_trace(format!("STA ZeroPage ({:#04x})\n", self.A));
+
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x86 => { //STX ZeroPage
                 let address = self.get_address(AdressingType::ZeroPage);
                 self.memory.write_memory(address, self.X);
-                self.add_trace(format!("STX ZeroPage ({:#04x})\n", self.X));
+
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x88 => { //DEY
                 self.Y = self.Y.overflowing_sub(1).0;
                 self.P.set_NZ(self.Y);
-                self.add_trace(format!("DEY\n"));
+
+                cpu_state.P = self.P;
+                cpu_state.Y = self.Y;
+                self.add_trace(cpu_state);
             }
 
             0x8a => { //TXA
                 self.A = self.X;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("TXA\n"));
+
+                cpu_state.A = self.A;
+                cpu_state.P = self.P;
+                self.add_trace(cpu_state);
             }
 
             0x8c => { //STY Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 self.memory.write_memory(address, self.Y);
-                self.add_trace(format!("STY Absolute ({:#04x})\n", self.A));
+
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x8d => { //STA Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 self.memory.write_memory(address, self.A);
-                self.add_trace(format!("STA Absolute ({:#04x})\n", self.A));
+
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x8e => { //STX Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 self.memory.write_memory(address, self.X);
-                self.add_trace(format!("STX Absolute ({:#04x})\n", self.X));
+
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x90 => { //BCC
@@ -1057,60 +1451,76 @@ impl CPU6502 {
 
                 if !self.P.get_C(){
                     let r = (self.PC as i16).overflowing_add(data as i16);
-                    self.add_trace(format!("Branch to PC={:#06x} ", r.0));
                     self.PC = r.0 as u16;
+                    cpu_state.adr = self.PC;
                 }
-                else {
-                    self.add_trace(format!("NOT Branching "));
-                }
-                self.add_trace(format!("BCC Relative [{}]\n", data));
+
+                cpu_state.op1 = data as u8;
+                self.add_trace(cpu_state);
             }
 
             0x91 => { //STA IndirectY
                 let address = self.get_address(AdressingType::IndirectY);
                 self.memory.write_memory(address, self.A);
-                self.add_trace(format!("STA IndirectY ({:#04x})\n", self.A));
+
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x94 => { //STY ZeroPageX
                 let address = self.get_address(AdressingType::ZeroPageX);
                 self.memory.write_memory(address, self.Y);
-                self.add_trace(format!("STY ZeroPageX ({:#04x})\n", self.A));
+
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x95 => { //STA ZeroPageX
                 let address = self.get_address(AdressingType::ZeroPageX);
                 self.memory.write_memory(address, self.A);
-                self.add_trace(format!("STA ZeroPageX ({:#04x})\n", self.A));
+
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x96 => { //STX ZeroPageY
                 let address = self.get_address(AdressingType::ZeroPageY);
                 self.memory.write_memory(address, self.X);
-                self.add_trace(format!("STX ZeroPageY ({:#04x})\n", self.X));
+
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x98 => { //TYA
                 self.A = self.Y;
                 self.P.set_NZ(self.A);
-                self.add_trace(format!("TYA\n"));
+
+                cpu_state.A = self.A;
+                cpu_state.P = self.P;
+                self.add_trace(cpu_state);
             }
 
             0x99 => { //STA AbsoluteY
                 let address = self.get_address(AdressingType::AbsoluteY);
                 self.memory.write_memory(address, self.A);
-                self.add_trace(format!("STX AbsoluteY ({:#04x})\n", self.Y));
+
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0x9a => {//TXS
                 self.SP = self.X;
-                self.add_trace(format!("TXS\n"));
+
+                cpu_state.SP = self.SP;
+                self.add_trace(cpu_state);
             }
 
             0x9d => { //STA AbsoluteX
                 let address = self.get_address(AdressingType::AbsoluteX);
                 self.memory.write_memory(address, self.A);
-                self.add_trace(format!("STA AbsoluteX ({:#04x})\n", self.A));
+
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xa0 => { //LDY Immediate
@@ -1118,7 +1528,10 @@ impl CPU6502 {
                 self.PC += 1;
                 self.Y = data;
                 self.P.set_NZ(data);
-                self.add_trace(format!("LDY Immediate ({:#04x})\n", data));
+
+                cpu_state.Y = self.Y;
+                cpu_state.P = self.P;
+                self.add_trace(cpu_state);
             }
 
             0xa1 => { //LDA IndirectX
@@ -1126,7 +1539,11 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = data;
                 self.P.set_NZ(data);
-                self.add_trace(format!("LDA IndirectX ({:#04x})\n", data));
+
+                cpu_state.A = self.A;
+                cpu_state.P = self.P;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xa2 => { //LDX Immediate
@@ -1134,7 +1551,10 @@ impl CPU6502 {
                 self.PC += 1;
                 self.X = data;
                 self.P.set_NZ(data);
-                self.add_trace(format!("LDX Immediate ({:#04x})\n", data));
+
+                cpu_state.X = self.X;
+                cpu_state.P = self.P;
+                self.add_trace(cpu_state);
             }
 
             0xa4 => { //LDY ZeroPage
@@ -1142,7 +1562,11 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.Y = data;
                 self.P.set_NZ(data);
-                self.add_trace(format!("LDY ZeroPage ({:#04x})\n", data));
+
+                cpu_state.Y = self.Y;
+                cpu_state.P = self.P;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xa5 => { //LDA ZeroPage
@@ -1150,7 +1574,11 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = data;
                 self.P.set_NZ(data);
-                self.add_trace(format!("LDA ZeroPage ({:#04x})\n", data));
+
+                cpu_state.A = self.A;
+                cpu_state.P = self.P;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xa6 => { //LDX ZeroPage
@@ -1158,13 +1586,20 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.X = data;
                 self.P.set_NZ(data);
-                self.add_trace(format!("LDX ZeroPage ({:#04x})\n", data));
+
+                cpu_state.X = self.X;
+                cpu_state.P = self.P;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xa8 => { //TAY
                 self.Y = self.A;
                 self.P.set_NZ(self.Y);
-                self.add_trace(format!("TAY\n"));
+
+                cpu_state.Y = self.Y;
+                cpu_state.P = self.P;
+                self.add_trace(cpu_state);
             }
 
             0xa9 => { //LDA Immediate
@@ -1172,13 +1607,19 @@ impl CPU6502 {
                 self.PC += 1;
                 self.A = data;
                 self.P.set_NZ(data);
-                self.add_trace(format!("LDA Immediate ({:#04x})\n", data));
+
+                cpu_state.A = self.A;
+                cpu_state.P = self.P;
+                self.add_trace(cpu_state);
             }
 
             0xaa => { //TAX
                 self.X = self.A;
                 self.P.set_NZ(self.X);
-                self.add_trace(format!("TAX\n"));
+
+                cpu_state.X = self.X;
+                cpu_state.P = self.P;
+                self.add_trace(cpu_state);
             }
 
             0xac => { //LDY Absolute
@@ -1186,7 +1627,11 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.Y = data;
                 self.P.set_NZ(data);
-                self.add_trace(format!("LDY Absolute ({:#04x})\n", data));
+
+                cpu_state.Y = self.Y;
+                cpu_state.P = self.P;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xad => { //LDA Absolute
@@ -1194,7 +1639,11 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = data;
                 self.P.set_NZ(data);
-                self.add_trace(format!("LDA Absolute ({:#04x})\n", data));
+
+                cpu_state.A = self.A;
+                cpu_state.P = self.P;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xae => { //LDX Absolute
@@ -1202,7 +1651,11 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.X = data;
                 self.P.set_NZ(data);
-                self.add_trace(format!("LDX Absolute ({:#04x})\n", data));
+
+                cpu_state.X = self.X;
+                cpu_state.P = self.P;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xb0 => {
@@ -1211,13 +1664,12 @@ impl CPU6502 {
 
                 if self.P.get_C(){
                     let r = (self.PC as i16).overflowing_add(data as i16);
-                    self.add_trace(format!("Branch to PC={:#06x} ", r.0));
                     self.PC = r.0 as u16;
+                    cpu_state.adr = self.PC;
                 }
-                else {
-                    self.add_trace(format!("NOT Branching "));
-                }
-                self.add_trace(format!("BCS Relative [{}]\n", data));
+
+                cpu_state.op1 = data as u8;
+                self.add_trace(cpu_state);
             }
 
             0xb1 => { //LDA IndirectY
@@ -1225,7 +1677,12 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = data;
                 self.P.set_NZ(data);
-                self.add_trace(format!("LDA IndirectY ({:#04x})\n", data));
+
+                cpu_state.A = self.A;
+                cpu_state.P = self.P;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
+                //elf.add_trace(format!("LDA IndirectY ({:#04x})\n", data));
             }
 
             0xb4 => { //LDY ZeroPageX
@@ -1233,7 +1690,11 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.Y = data;
                 self.P.set_NZ(data);
-                self.add_trace(format!("LDY ZeroPageX ({:#04x})\n", data));
+
+                cpu_state.Y = self.Y;
+                cpu_state.P = self.P;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xb5 => { //LDA ZeroPageX
@@ -1241,7 +1702,11 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = data;
                 self.P.set_NZ(data);
-                self.add_trace(format!("LDA ZeroPageX ({:#04x})\n", data));
+
+                cpu_state.A = self.A;
+                cpu_state.P = self.P;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xb6 => { //LDX ZeroPageY
@@ -1249,12 +1714,18 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.X = data;
                 self.P.set_NZ(data);
-                self.add_trace(format!("LDX ZeroPageY ({:#04x})\n", data));
+
+                cpu_state.X = self.X;
+                cpu_state.P = self.P;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xb8 => { //CLV
                 self.P.set_V(false);
-                self.add_trace(format!("CLV\n"));
+
+                cpu_state.P = self.P;
+                self.add_trace(cpu_state);
             }
 
             0xb9 => { //LDA AbsoluteY
@@ -1262,13 +1733,18 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = data;
                 self.P.set_NZ(data);
-                self.add_trace(format!("LDA AbsoluteY ({:#04x})\n", data));
+
+                cpu_state.Y = self.Y;
+                cpu_state.P = self.P;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xba => { //TSX
                 self.X = self.SP;
                 self.P.set_NZ(self.X);
-                self.add_trace(format!("TSX({:#04x})\n", self.X));
+
+
             }
 
             0xbc => { //LDY AbsoluteX
@@ -1276,7 +1752,11 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.Y = data;
                 self.P.set_NZ(data);
-                self.add_trace(format!("LDY AbsoluteX ({:#04x})\n", data));
+
+                cpu_state.Y = self.Y;
+                cpu_state.P = self.P;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xbd => { //LDA AbsoluteX
@@ -1284,7 +1764,11 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.A = data;
                 self.P.set_NZ(data);
-                self.add_trace(format!("LDA AbsoluteX ({:#04x})\n", data));
+
+                cpu_state.A = self.A;
+                cpu_state.P = self.P;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xbe => { //LDX AbsoluteY
@@ -1292,7 +1776,11 @@ impl CPU6502 {
                 let data = self.memory.read_memory(address);
                 self.X = data;
                 self.P.set_NZ(data);
-                self.add_trace(format!("LDX AbsoluteY ({:#04x})\n", data));
+
+                cpu_state.X = self.X;
+                cpu_state.P = self.P;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xc0 => { //CPY Immediate
@@ -1301,17 +1789,23 @@ impl CPU6502 {
                 let r = self.Y.overflowing_sub(data);
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                self.add_trace(format!("CPY Immediate\n"));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                self.add_trace(cpu_state);
             }
 
             0xc1 => { //CMP IndirectX
                 let address = self.get_address(AdressingType::IndirectX);
                 let data = self.memory.read_memory(address);
                 let r = self.A.overflowing_sub(data);
-                self.add_trace(format!("CMP v={:?} ", r));
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                self.add_trace(format!("CMP IndirectX ({:#04x})\n", data));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xc4 => { //CPY ZeroPage
@@ -1320,49 +1814,68 @@ impl CPU6502 {
                 let r = self.Y.overflowing_sub(data);
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                self.add_trace(format!("CPY ZeroPage"));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xc5 => { //CMP ZeroPage
                 let address = self.get_address(AdressingType::ZeroPage);
                 let data = self.memory.read_memory(address);
                 let r = self.A.overflowing_sub(data);
-                self.add_trace(format!("CMP v={:?} ", r));
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                self.add_trace(format!("CMP ZeroPage ({:#04x})\n", data));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xc6 => { //DEC ZeroPage
                 let address = self.get_address(AdressingType::ZeroPage);
                 let mut data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 data = data.overflowing_sub(1).0;
                 self.memory.write_memory(address, data);
                 self.P.set_NZ(data);
-                self.add_trace(format!("DEC ZeroPage ({:#04x})\n", data));
+
+                cpu_state.P = self.P;
+                cpu_state.op2 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xc8 => { //INY
                 self.Y = self.Y.overflowing_add(1).0;
                 self.P.set_NZ(self.Y);
-                self.add_trace(format!("INY\n"));
+
+                cpu_state.Y = self.Y;
+                cpu_state.P = self.P;
+                self.add_trace(cpu_state);
             }
 
             0xc9 => { //CMP Immediate
                 let data = self.memory.read_memory(self.PC);
                 self.PC += 1;
                 let r = self.A.overflowing_sub(data);
-                
-                self.add_trace(format!("CMP v={:?} ", r));
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                self.add_trace(format!("CMP Immediate ({:#04x})\n", data));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                self.add_trace(cpu_state);
             }
 
             0xca => { //DEX
                 self.X = self.X.overflowing_sub(1).0;
                 self.P.set_NZ(self.X);
-                self.add_trace(format!("DEX\n"));
+
+                cpu_state.X = self.X;
+                cpu_state.P = self.P;
+                self.add_trace(cpu_state);
             }
 
             0xcc => { //CPY Absolute
@@ -1371,187 +1884,246 @@ impl CPU6502 {
                 let r = self.Y.overflowing_sub(data);
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                self.add_trace(format!("CPY Absolute\n"));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xcd => { //CMP Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 let data = self.memory.read_memory(address);
                 let r = self.A.overflowing_sub(data);
-                self.add_trace(format!("CMP v={:?} ", r));
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                self.add_trace(format!("CMP Absolute ({:#04x})\n", data));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xce => { //DEC Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 let mut data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 data = data.overflowing_sub(1).0;
                 self.memory.write_memory(address, data);
                 self.P.set_NZ(data);
-                self.add_trace(format!("DEC Absolute ({:#04x})", data));
+
+                cpu_state.P = self.P;
+                cpu_state.op2 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xd0 => { //BNE Relative
                 let data = self.memory.read_memory(self.PC) as i8;
                 self.PC += 1;
-                
+
                 if !self.P.get_Z(){
                     let r = (self.PC as i16).overflowing_add(data as i16);
-                    self.add_trace(format!("Branch to PC={:#06x} ", r.0));
                     self.PC = r.0 as u16;
+                    cpu_state.adr = self.PC;
                 }
-                else {
-                    self.add_trace(format!("NOT Branching "));
-                }
-                self.add_trace(format!("BNE Relative [{}]'n", data));
+
+                cpu_state.op1 = data as u8;
+                self.add_trace(cpu_state);
             }
 
             0xd1 => { //CMP IndirectY
                 let address = self.get_address(AdressingType::IndirectY);
                 let data = self.memory.read_memory(address);
                 let r = self.A.overflowing_sub(data);
-                self.add_trace(format!("CMP v={:?} ", r));
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                self.add_trace(format!("CMP IndirectY ({:#04x})", data));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xd5 => { //CMP ZeroPageX
                 let address = self.get_address(AdressingType::ZeroPageX);
                 let data = self.memory.read_memory(address);
                 let r = self.A.overflowing_sub(data);
-                self.add_trace(format!("CMP v={:?} ", r));
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                self.add_trace(format!("CMP ZeroPageX ({:#04x})\n", data));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xd6 => { //DEC ZeroPageX
                 let address = self.get_address(AdressingType::ZeroPageX);
                 let mut data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 data = data.overflowing_sub(1).0;
                 self.memory.write_memory(address, data);
                 self.P.set_NZ(data);
-                self.add_trace(format!("DEC ZeroPageX ({:#04x})\n", data));
+
+                cpu_state.P = self.P;
+                cpu_state.op2 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xd8 => { //CLD Clear Decimal Mode
                 self.P.set_D(false);
-                self.add_trace(format!("CLD\n"));
+
+                cpu_state.P = self.P;
+                self.add_trace(cpu_state);
             }
 
             0xd9 => { //CMP AbsoluteY
                 let address = self.get_address(AdressingType::AbsoluteY);
                 let data = self.memory.read_memory(address);
                 let r = self.A.overflowing_sub(data);
-                self.add_trace(format!("CMP v={:?} ", r));
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                self.add_trace(format!("CMP AbsoluteY ({:#04x})\n", data));  
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xdd => { //CMP AbsoluteX
                 let address = self.get_address(AdressingType::AbsoluteX);
                 let data = self.memory.read_memory(address);
                 let r = self.A.overflowing_sub(data);
-                self.add_trace(format!("CMP v={:?} ", r));
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                self.add_trace(format!("CMP AbsoluteX ({:#04x})\n", data));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xde => { //DEC AbsoluteX
                 let address = self.get_address(AdressingType::AbsoluteX);
                 let mut data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 data = data.overflowing_sub(1).0;
                 self.memory.write_memory(address, data);
                 self.P.set_NZ(data);
-                self.add_trace(format!("DEC AbsoluteX ({:#04x})\n", data));
+
+                cpu_state.P = self.P;
+                cpu_state.op2 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xe0 => { //CPX Immediate
                 let data = self.memory.read_memory(self.PC);
                 self.PC += 1;
                 let r = self.X.overflowing_sub(data);
-                self.add_trace(format!("CPX v={:?} ", r));
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                self.add_trace(format!("CPX Immediate ({:#06x})\n", data));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                self.add_trace(cpu_state);
             }
 
             0xe1 => { //SBC IndirectX
                 let address = self.get_address(AdressingType::IndirectX);
                 let data = self.memory.read_memory(address);
-                self.sbc(data);
+                cpu_state.adr = address;
+                self.sbc(cpu_state, data);
             }
 
             0xe4 => { //CPX ZeroPage
                 let address = self.get_address(AdressingType::ZeroPage);
                 let data = self.memory.read_memory(address);
                 let r = self.X.overflowing_sub(data);
-                self.add_trace(format!("CPX v={:?} ", r));
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                self.add_trace(format!("CPX ZeroPage ({:#06x})\n", data));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xe5 => { //SBC ZeroPage
                 let address = self.get_address(AdressingType::ZeroPage);
                 let data = self.memory.read_memory(address);
-                self.sbc(data);
+                cpu_state.adr = address;
+                self.sbc(cpu_state, data);
             }
 
             0xe6 => { //INC ZeroPage
                 let address = self.get_address(AdressingType::ZeroPage);
                 let mut data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 data = data.overflowing_add(1).0;
                 self.memory.write_memory(address, data);
                 self.P.set_NZ(data);
-                self.add_trace(format!("INC ZeroPage ({:#04x})\n", data));
+
+                cpu_state.P = self.P;
+                cpu_state.op2 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xe8 => { //INX
                 let r = self.X.overflowing_add(1);
                 self.X = r.0;
                 self.P.set_NZ(r.0);
-                self.add_trace(format!("INX\n"));
+
+                cpu_state.X = self.X;
+                cpu_state.P = self.P;
+                self.add_trace(cpu_state);
             }
 
-            0xe9 => { //SBC ZeroPage
+            0xe9 => { //SBC Immidiate
                 let data = self.memory.read_memory(self.PC);
                 self.PC += 1;
-                self.sbc(data);
+                self.sbc(cpu_state, data);
             }
 
             0xea => { //NOP
-                self.add_trace(format!("NOP\n"));
+                self.add_trace(cpu_state);
             }
 
             0xec => { //CPX Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 let data = self.memory.read_memory(address);
                 let r = self.X.overflowing_sub(data);
-                self.add_trace(format!("CPX v={:?} ", r));
                 self.P.set_NZ(r.0);
                 self.P.set_C(!r.1);
-                self.add_trace(format!("CPX Absolute ({:#06x})\n", data));
+
+                cpu_state.P = self.P;
+                cpu_state.op1 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xed => { //SBC Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 let data = self.memory.read_memory(address);
-                self.sbc(data);
+                cpu_state.adr = address;
+                self.sbc(cpu_state, data);
             }
 
             0xee => { //INC Absolute
                 let address = self.get_address(AdressingType::Absolute);
                 let mut data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 data = data.overflowing_add(1).0;
                 self.memory.write_memory(address, data);
                 self.P.set_NZ(data);
-                self.add_trace(format!("INC Absolute ({:#04x})\n", data));
+
+                cpu_state.P = self.P;
+                cpu_state.op2 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xf0 => { //BEQ Relative
@@ -1560,65 +2132,80 @@ impl CPU6502 {
 
                 if self.P.get_Z(){
                     let r = (self.PC as i16).overflowing_add(data as i16);
-                    self.add_trace(format!("Branch to PC={:#06x} ", r.0));
                     self.PC = r.0 as u16;
+                    cpu_state.adr = self.PC;
                 }
-                else {
-                    self.add_trace(format!("NOT Branching "));
-                }
-                self.add_trace(format!("BEQ Relative [{}]\n", data));
+
+                cpu_state.op1 = data as u8;
+                self.add_trace(cpu_state);
             }
 
             0xf1 => { //SBC IndirectY
                 let address = self.get_address(AdressingType::IndirectY);
                 let data = self.memory.read_memory(address);
-                self.sbc(data);
+                cpu_state.adr = address;
+                self.sbc(cpu_state, data);
             }
 
             0xf5 => { //SBC ZeroPageX
                 let address = self.get_address(AdressingType::ZeroPageX);
                 let data = self.memory.read_memory(address);
-                self.sbc(data);
+
+                cpu_state.adr = address;
+                self.sbc(cpu_state, data);
             }
 
             0xf6 => { //INC ZeroPageX
                 let address = self.get_address(AdressingType::ZeroPageX);
                 let mut data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 data = data.overflowing_add(1).0;
                 self.memory.write_memory(address, data);
                 self.P.set_NZ(data);
-                self.add_trace(format!("INC ZeroPageX ({:#04x})\n", data));
+
+                cpu_state.P = self.P;
+                cpu_state.op2 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             0xf8 => { //SED
                 self.P.set_D(true);
-                self.add_trace(format!("SED\n"));
+
+                cpu_state.P = self.P;
+                self.add_trace(cpu_state);
             }
 
             0xf9 => { //SBC AbsoluteY
                 let address = self.get_address(AdressingType::AbsoluteY);
                 let data = self.memory.read_memory(address);
-                self.sbc(data);
+                cpu_state.adr = address;
+                self.sbc(cpu_state, data);
             }
 
             0xfd => { //SBC AbsoluteX
                 let address = self.get_address(AdressingType::AbsoluteX);
                 let data = self.memory.read_memory(address);
-                self.sbc(data);
+                cpu_state.adr = address;
+                self.sbc(cpu_state, data);
             }
 
             0xfe => { //INC AbsoluteX
                 let address = self.get_address(AdressingType::AbsoluteX);
                 let mut data = self.memory.read_memory(address);
+                cpu_state.op1 = data;
                 data = data.overflowing_add(1).0;
                 self.memory.write_memory(address, data);
                 self.P.set_NZ(data);
-                self.add_trace(format!("INC AbsoluteX ({:#04x})\n", data));
+
+                cpu_state.P = self.P;
+                cpu_state.op2 = data;
+                cpu_state.adr = address;
+                self.add_trace(cpu_state);
             }
 
             _  => {
-                self.add_trace("\n".to_owned());
-                self.show_cpu_debug();
+                self.add_trace(cpu_state);
                 return Err(CpuError::new(&format!("Unknown instruction: INS={:#04x}", ins)));
             }
         }
@@ -1633,7 +2220,6 @@ impl CPU6502 {
 
     fn interrupt(&mut self, int: InterruptType){
         if self.P.get_I() && int == InterruptType::INT{
-            self.add_trace(format!("INT while innterrupts are disabled\n"));
             return;
         }
         let sp = 0x0100 | self.SP as u16;
@@ -1658,7 +2244,7 @@ impl CPU6502 {
                 self.memory.read_memory_word(0xfffa)
             }
         };
-        self.add_trace(format!("INT PC={:#06x} SP={:#04x} INTVEC={:#06x}\n", self.PC, self.P.value, address));
+
         self.PC = address;
         self.P.set_I(true); //Disable Interupts
     }
@@ -2120,7 +2706,7 @@ mod tests{
     }
 
     #[test]
-    fn test_all(){
+    fn test_all() -> Result<(), crate::cpu6502::CpuError>{
         let mem = Memory::from_file("./tests/6502_functional_test.bin").unwrap();
         let mut cpu = CPU6502::new(mem);
         cpu.reset_at(0x0400);
@@ -2134,8 +2720,8 @@ mod tests{
                 Ok(_) => {},
                 Err(e) => {
                     cpu.show_cpu_debug();
-                    println!("Error: {}", e);
-                    assert!(false);
+                    return Err(e);
+                    //assert!(false);
                 }
             };
 
@@ -2144,7 +2730,7 @@ mod tests{
             cnt += 1;
 
             if cnt > 100_000_000{
-                cpu.show_trace();
+                cpu.show_cpu_debug();
                 assert!(false);
             }
         }
