@@ -81,18 +81,19 @@ enum AdressingType{
 
 #[derive(Debug)]
 pub struct CpuError{
+    pub pc: u16,
     error_string: String,
 }
 
 impl CpuError {
-    fn new(error: &str) -> Self{
-        CpuError{error_string: error.to_owned()}
+    fn new(error: &str, pc: u16) -> Self{
+        CpuError{error_string: error.to_owned(), pc: pc}
     }
 }
 
 impl std::fmt::Display for CpuError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error>{
-        fmt.write_str(&format!("[{}]", self.error_string))
+        fmt.write_str(&format!("[{} PC={:#06x}]", self.error_string, self.pc))
     }
 }
 
@@ -356,9 +357,10 @@ impl CPU6502 {
                 0
             };
 
-            self.P.set_C(highv + higha + rem > 9);
             self.A = (lowa + lowv + self.P.get_C() as u8) % 10 | ((higha + highv + rem) % 10 << 4);
+            self.P.set_C(highv + higha + rem > 9);
 
+            state.P = self.P;
             state.A = self.A;
             self.add_trace(state);
             return;
@@ -382,12 +384,24 @@ impl CPU6502 {
 
     fn sbc(&mut self, mut state: CPUState, value: u8){
         if self.P.get_D(){
-            let lowv = value & 0x0f;
-            let lowa = self.A & 0x0f;
+            self.P.set_V(false);
+            let lowv = (value & 0x0f) as i8;
+            let lowa = (self.A & 0x0f) as i8;
 
-            let highv = value >> 4;
-            let higha = self.A >> 4;
+            let highv = (value >> 4) as i8;
+            let higha = (self.A >> 4) as i8;
 
+            let rem = if (lowa - lowv - !self.P.get_C() as i8) < 0{
+                1
+            }
+            else{
+                0
+            };
+
+            self.A = (lowa - lowv - !self.P.get_C() as i8).rem_euclid(10) as u8 | (((higha - highv - rem).rem_euclid(10) as u8) << 4);
+            self.P.set_C(!(higha - highv - rem < 0));
+
+            state.P = self.P;
             state.op1 = value;
             state.A = self.A;
             self.add_trace(state);
@@ -2205,13 +2219,14 @@ impl CPU6502 {
             }
 
             _  => {
+                let pc = cpu_state.PC;
                 self.add_trace(cpu_state);
-                return Err(CpuError::new(&format!("Unknown instruction: INS={:#04x}", ins)));
+                return Err(CpuError::new(&format!("Unknown instruction: INS={:#04x}", ins), pc));
             }
         }
 
         if self.PC == self.prev_PC{
-            return Err(CpuError::new(&format!("LOOP Detected PC={:#06x}", self.PC)));
+            return Err(CpuError::new(&format!("LOOP Detected"), self.PC));
         }
         self.prev_PC = self.PC;
 
@@ -2710,29 +2725,25 @@ mod tests{
         let mem = Memory::from_file("./tests/6502_functional_test.bin").unwrap();
         let mut cpu = CPU6502::new(mem);
         cpu.reset_at(0x0400);
-        cpu.enable_trace(128);
+        cpu.enable_trace(32);
 
         let mut cnt = 0;
 
         loop{
-            //println!("{}", cnt);
+            cnt += 1;
             match cpu.run_single() {
                 Ok(_) => {},
                 Err(e) => {
+                    if e.pc == 0x3469{ //This test program loops here on success
+                        return Ok(());
+                    }
+
+                    println!("Error run {} instructions", cnt);
                     cpu.show_cpu_debug();
                     return Err(e);
                     //assert!(false);
                 }
             };
-
-            //cpu.memory.show_stack();
-            //println!("CPU: {:?}", cpu);
-            cnt += 1;
-
-            if cnt > 100_000_000{
-                cpu.show_cpu_debug();
-                assert!(false);
-            }
         }
     }
 }
