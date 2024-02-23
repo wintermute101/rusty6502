@@ -325,9 +325,9 @@ impl<MemT: Memory6502 + Memory6502Debug> CPU6502<MemT> {
         CPU6502 { A: 0, X: 0, Y: 0, PC: 0, SP: 0xff, P: StatusRegister { value: 0 }, prev_PC: 0, memory: mem, trace: None, trace_line_limit: 0 }
     }
 
-    pub fn enable_trace(&mut self, trace_line_limit: usize){
-        self.trace = Some(VecDeque::with_capacity(trace_line_limit));
-        self.trace_line_limit = trace_line_limit;
+    pub fn enable_trace(&mut self, trace_size_limit: usize){
+        self.trace = Some(VecDeque::with_capacity(trace_size_limit));
+        self.trace_line_limit = trace_size_limit;
     }
 
     pub fn reset(&mut self) {
@@ -498,7 +498,11 @@ impl<MemT: Memory6502 + Memory6502Debug> CPU6502<MemT> {
         let ins = self.memory.read_memory(self.PC);
         let mut cpu_state = CPUState::new(self, ins);
         //build cpu state before we mess PC
-        self.PC += 1;
+        let pc = self.PC.overflowing_add(1);
+        if pc.1{
+            return Err(CpuError::new("CPU Windup", self.PC));
+        }
+        self.PC = pc.0;
 
         match ins {
             0x00 => { //BRK
