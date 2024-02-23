@@ -1,6 +1,6 @@
 mod cpu6502;
 mod c64memory;
-use cpu6502::{CPU6502,CpuError};
+use cpu6502::{CPU6502,CpuError,InterruptType};
 use c64memory::C64Memory;
 
 pub struct C64{
@@ -13,7 +13,7 @@ impl C64{
         let cpu = CPU6502::new(mem);
 
         C64 { cpu: cpu }
-        
+
     }
 
     pub fn reset(&mut self){
@@ -26,11 +26,19 @@ impl C64{
         }
     }
 
+    pub fn run_single(&mut self) -> Result<(), CpuError>{
+        self.cpu.run_single()
+    }
+
     pub fn enable_trace(&mut self, trace_size_limit: usize){
         self.cpu.enable_trace(trace_size_limit)
     }
 
     pub fn show_cpu_debug(&self){
         self.cpu.show_cpu_debug();
+    }
+
+    pub fn interrupt(&mut self){
+        self.cpu.interrupt(InterruptType::INT);
     }
 }

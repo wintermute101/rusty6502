@@ -6,6 +6,7 @@ pub struct C64Memory{
     ram: [u8; 64*1024],
     kernal: Vec<u8>,
     basic_rom: Vec<u8>,
+    color_ram: [u8; 1024]
 }
 
 impl C64Memory{
@@ -22,7 +23,7 @@ impl C64Memory{
         let kernal = C64Memory::load_rom("roms/kernal.901227-02.bin").expect("no kernal");
         let basic = C64Memory::load_rom("roms/basic.901226-01.bin").expect("no basic");
 
-        C64Memory { ram: [0; 64*1024], kernal: kernal, basic_rom: basic }
+        C64Memory { ram: [0; 64*1024], kernal: kernal, basic_rom: basic, color_ram: [0; 1024] }
     }
 }
 
@@ -30,7 +31,14 @@ impl Memory6502 for C64Memory{
     fn write_memory(&mut self, address: u16, value: u8) {
         match address {
             0xd000 ..= 0xdfff => { //IO
-                println!("IO Write {:#06x} => {:#04x}", address, value);
+                if address >= 0xd800 && address <= 0xdbff{
+                    println!("IO Color RAM Write {:#06x} => {:#04x}", address, value);
+                    let adr = address - 0xd800;
+                    self.color_ram[adr as usize] = value;
+                }
+                else{
+                    println!("IO Write {:#06x} => {:#04x}", address, value);
+                }
             }
             _ => {
                 self.ram[address as usize] = value;
@@ -68,11 +76,29 @@ impl Memory6502 for C64Memory{
 }
 
 impl Memory6502Debug for C64Memory{
-    fn show_stack(&self) {
-
+    fn show_stack(&self){
+        let mslicee: [u8; 16] = self.ram[0x01f0 .. 0x0200].try_into().unwrap();
+        println!("{:04x}: {:02x?}", 0x01f0, mslicee);
     }
 
-    fn show_zero_page(&self) {
+    fn show_zero_page(&self){
+        let mut last = [0xff; 16];
+        let mut lasti = 0;
 
+        for i in 0..256/16{
+            let mslicee: [u8; 16] = self.ram[i*16 .. (i+1)*16].try_into().unwrap();
+
+            if mslicee != last{
+                if lasti+1 != i && i != 0{
+                    println!("*");
+                }
+                println!("{:04x}: {:02x?}", i*16, mslicee);
+                lasti = i;
+            }
+            else if i == 256/16-1 {
+                println!("*\n{:04x}", i*16);
+            }
+            last = mslicee;
+        }
     }
 }

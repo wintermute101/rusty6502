@@ -102,7 +102,7 @@ impl Error for CpuError {
 }
 
 #[derive(PartialEq)]
-enum InterruptType {
+pub enum InterruptType {
     INT,
     NMI,
     BRK,
@@ -2237,7 +2237,7 @@ impl<MemT: Memory6502 + Memory6502Debug> CPU6502<MemT> {
         Ok(())
     }
 
-    fn interrupt(&mut self, int: InterruptType){
+    pub fn interrupt(&mut self, int: InterruptType){
         if self.P.get_I() && int == InterruptType::INT{
             return;
         }
