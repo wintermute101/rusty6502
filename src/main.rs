@@ -1,10 +1,11 @@
-mod cpu6502;
-use cpu6502::{Memory,CPU6502};
-use std::time::{Instant};
+
+mod c64;
+//use cpu6502::{Memory,CPU6502};
+use std::time::Instant;
 
 fn main() {
 
-        let mem = Memory::from_file("./tests/6502_functional_test.bin").unwrap();
+        /*let mem = Memory::from_file("./tests/6502_functional_test.bin").unwrap();
         let mut cpu = CPU6502::new(mem);
         cpu.reset_at(0x0400);
 
@@ -33,5 +34,7 @@ println!("
             };
         }
         let elapsed_time = now.elapsed();
-        println!("Run {} instructions instructions per sec {}", cnt, cnt * 1000 / elapsed_time.as_millis());
+        println!("Run {} instructions in {:?} per sec {}", cnt, elapsed_time, cnt * 1000 / elapsed_time.as_millis());*/
+
+
 }

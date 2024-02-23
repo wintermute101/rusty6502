@@ -1,7 +1,8 @@
-mod memory;
-pub use memory::Memory;
+pub mod memory;
 use std::collections::VecDeque;
 use std::error::Error;
+
+use self::memory::{Memory6502, Memory6502Debug};
 
 #[derive(Clone,Copy)]
 struct StatusRegister{
@@ -98,7 +99,6 @@ impl std::fmt::Display for CpuError {
 }
 
 impl Error for CpuError {
-
 }
 
 #[derive(PartialEq)]
@@ -283,7 +283,7 @@ impl CPUState {
         }.to_owned()
     }
 
-    fn new(cpu: &CPU6502, ins: u8) -> Self{
+    fn new<MemT>(cpu: &CPU6502<MemT>, ins: u8) -> Self{
         CPUState { ins: ins, op1: 0, op2: 0, A: cpu.A, X: cpu.X, Y: cpu.Y, P: cpu.P, SP: cpu.SP, PC: cpu.PC, adr: 0 }
     }
 }
@@ -296,7 +296,7 @@ impl std::fmt::Debug for CPUState{
 }
 
 #[allow(non_snake_case)]
-pub struct CPU6502{
+pub struct CPU6502<MemT>{
     A:  u8,
     X:  u8,
     Y:  u8,
@@ -305,13 +305,13 @@ pub struct CPU6502{
     P:  StatusRegister,
 
     prev_PC: u16,
-    memory: Memory,
+    memory: MemT,
 
     trace_line_limit : usize,
     trace: Option<VecDeque<CPUState>>,
 }
 
-impl std::fmt::Debug for CPU6502 {
+impl<MemT: Memory6502> std::fmt::Debug for CPU6502<MemT> {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error>{
         fmt.write_str(&format!("PC={:#06x} A={:#04x} X={:#04x} Y={:#04x} SP={:#04x} P={:?}"
                                         , self.PC, self.A, self.X, self.Y, self.SP, self.P))
@@ -320,8 +320,8 @@ impl std::fmt::Debug for CPU6502 {
     }
 }
 
-impl CPU6502 {
-    pub fn new(mem: Memory) -> Self{
+impl<MemT: Memory6502 + Memory6502Debug> CPU6502<MemT> {
+    pub fn new(mem: MemT) -> Self{
         CPU6502 { A: 0, X: 0, Y: 0, PC: 0, SP: 0xff, P: StatusRegister { value: 0 }, prev_PC: 0, memory: mem, trace: None, trace_line_limit: 0 }
     }
 
@@ -2267,7 +2267,8 @@ impl CPU6502 {
 
 #[cfg(test)]
 mod tests{
-    use crate::cpu6502::{Memory,CPU6502};
+    use crate::c64::cpu6502::memory::{Memory,Memory6502};
+    use crate::c64::cpu6502::CPU6502;
     #[test]
     fn test1(){
         let mut mem = Memory::new(4*1024);
@@ -2721,7 +2722,7 @@ mod tests{
     }
 
     #[test]
-    fn test_all() -> Result<(), crate::cpu6502::CpuError>{
+    fn test_all() -> Result<(), crate::c64::cpu6502::CpuError>{
         let mem = Memory::from_file("./tests/6502_functional_test.bin").unwrap();
         let mut cpu = CPU6502::new(mem);
         cpu.reset_at(0x0400);

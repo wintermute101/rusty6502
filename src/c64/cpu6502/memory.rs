@@ -1,6 +1,17 @@
 use std::fs::File;
 use std::io::prelude::*;
 
+pub trait Memory6502 {
+    fn write_memory(&mut self, address: u16, value: u8);
+    fn read_memory(&self, address: u16) -> u8;
+    fn read_memory_word(&self, address: u16) -> u16;
+}
+
+pub trait Memory6502Debug {
+    fn show_stack(&self);
+    fn show_zero_page(&self);
+}
+
 pub struct Memory{
     memory: Vec<u8>,
 }
@@ -17,43 +28,15 @@ impl Memory {
         file.read_to_end(&mut data)?;
         Ok(Memory{memory: data})
     }
+}
 
-    pub fn write_memory(&mut self, address: u16, value: u8){
-        if let Some(mem) = self.memory.get_mut(address as usize){
-            *mem = value;
-        }
-        else{
-            println!("Write to address out of range ADDR={:#06x} VAL={:#04x}", address, value);
-        }
-    }
-
-    pub fn read_memory(&self, address: u16) -> u8{
-        if let Some(mem) = self.memory.get(address as usize){
-            *mem
-        }
-        else
-        {
-            println!("Read from address out of range ADDR={:#06x}", address);
-            0
-        }
-    }
-
-    pub fn read_memory_word(&self, address: u16) -> u16{
-        if let Ok(m) = self.memory[address as usize .. (address as usize) + 2].try_into(){
-            u16::from_le_bytes(m)
-        }
-        else{
-            println!("Read from address out of range ADDR={:#06x}", address);
-            0
-        }
-    }
-
-    pub fn show_stack(&self){
+impl Memory6502Debug for Memory {
+    fn show_stack(&self){
         let mslicee: [u8; 16] = self.memory[0x01f0 .. 0x0200].try_into().unwrap();
         println!("{:04x}: {:02x?}", 0x01f0, mslicee);
     }
 
-    pub fn show_zero_page(&self){
+    fn show_zero_page(&self){
         let mut last = [0xff; 16];
         let mut lasti = 0;
 
@@ -73,6 +56,39 @@ impl Memory {
             last = mslicee;
         }
     }
+}
+
+impl Memory6502 for Memory{
+    fn write_memory(&mut self, address: u16, value: u8){
+        if let Some(mem) = self.memory.get_mut(address as usize){
+            *mem = value;
+        }
+        else{
+            println!("Write to address out of range ADDR={:#06x} VAL={:#04x}", address, value);
+        }
+    }
+
+    fn read_memory(&self, address: u16) -> u8{
+        if let Some(mem) = self.memory.get(address as usize){
+            *mem
+        }
+        else
+        {
+            println!("Read from address out of range ADDR={:#06x}", address);
+            0
+        }
+    }
+
+    fn read_memory_word(&self, address: u16) -> u16{
+        if let Ok(m) = self.memory[address as usize .. (address as usize) + 2].try_into(){
+            u16::from_le_bytes(m)
+        }
+        else{
+            println!("Read from address out of range ADDR={:#06x}", address);
+            0
+        }
+    }
+
 }
 
 impl std::fmt::Debug for Memory {
