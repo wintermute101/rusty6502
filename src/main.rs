@@ -43,5 +43,6 @@ fn main() {
     }
 
     println!("Exiting...");
-    c64.show_cpu_debug();
+    c64.show_debug();
+    c64.show_screen_ram(true);
 }

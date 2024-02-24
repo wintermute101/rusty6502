@@ -25,6 +25,96 @@ impl C64Memory{
 
         C64Memory { ram: [0; 64*1024], kernal: kernal, basic_rom: basic, color_ram: [0; 1024] }
     }
+
+    fn screen_code_to_char(screen_code: u8) -> char{
+
+        match (screen_code & 0x7f) {
+            0x00 => '@',
+            0x01 => 'A',
+            0x02 => 'B',
+            0x03 => 'C',
+            0x04 => 'D',
+            0x05 => 'E',
+            0x06 => 'F',
+            0x07 => 'G',
+            0x08 => 'H',
+            0x09 => 'I',
+            0x0a => 'J',
+            0x0b => 'K',
+            0x0c => 'L',
+            0x0d => 'M',
+            0x0e => 'N',
+            0x0f => 'O',
+            0x10 => 'P',
+            0x11 => 'Q',
+            0x12 => 'R',
+            0x13 => 'S',
+            0x14 => 'T',
+            0x15 => 'U',
+            0x16 => 'V',
+            0x17 => 'W',
+            0x18 => 'X',
+            0x19 => 'Y',
+            0x1a => 'Z',
+            0x1b => '[',
+            0x1c => '£',
+            0x1d => ']',
+
+            0x20 => ' ',
+            0x21 => '!',
+            0x22 => '"',
+            0x23 => '#',
+            0x24 => '$',
+            0x25 => '%',
+            0x26 => '&',
+            0x27 => '`',
+            0x28 => '(',
+            0x29 => ')',
+            0x2a => '*',
+            0x2b => '+',
+            0x2c => ',',
+            0x2d => '-',
+            0x2e => '.',
+            0x2f => '/',
+            0x30 => '0',
+            0x31 => '1',
+            0x32 => '2',
+            0x33 => '3',
+            0x34 => '4',
+            0x35 => '5',
+            0x36 => '6',
+            0x37 => '7',
+            0x38 => '8',
+            0x39 => '9',
+            0x3a => ':',
+            0x3b => ';',
+            0x3c => '<',
+            0x3d => '=',
+            0x3e => '>',
+            0x3f => '?',
+
+            _    => '.',
+        }
+    }
+
+    pub fn show_screen_ram(&self, translate: bool){
+        for i in 0..1000/40{
+            let addr = 0x0400 + i*40;
+            let mslicee: [u8; 40] = self.ram[addr .. addr+40].try_into().unwrap();
+            if translate{
+                let translated: Vec<_> = mslicee.iter().map(|c| C64Memory::screen_code_to_char(*c)).collect();
+                print!("{:04x}: ", addr);
+                for i in translated{
+                    print!("{}", i);
+                }
+                println!("");
+            }
+            else{
+                println!("{:04x}: {:02x?}", addr, mslicee);
+            }
+        }
+    }
+
 }
 
 impl Memory6502 for C64Memory{
