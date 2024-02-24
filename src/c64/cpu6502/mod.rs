@@ -1,8 +1,8 @@
 pub mod memory;
-use std::collections::VecDeque;
+use ringbuffer::{AllocRingBuffer, RingBuffer};
 use std::error::Error;
 
-use self::memory::{Memory6502, Memory6502Debug};
+use self::memory::Memory6502;
 
 #[derive(Clone,Copy)]
 struct StatusRegister{
@@ -115,12 +115,12 @@ struct CPUState{
     op1: u8,
     op2: u8,
 
-    A:  u8,
-    X:  u8,
-    Y:  u8,
-    P:  StatusRegister,
+    A:   u8,
+    X:   u8,
+    Y:   u8,
     SP:  u8,
-    PC: u16,
+    P:   StatusRegister,
+    PC:  u16,
     adr: u16,
 }
 
@@ -307,7 +307,7 @@ pub struct CPU6502{
     prev_PC: u16,
 
     trace_line_limit : usize,
-    trace: Option<VecDeque<CPUState>>,
+    trace: Option<AllocRingBuffer<CPUState>>,
 }
 
 impl std::fmt::Debug for CPU6502 {
@@ -325,8 +325,10 @@ impl CPU6502{
     }
 
     pub fn enable_trace(&mut self, trace_size_limit: usize){
-        self.trace = Some(VecDeque::with_capacity(trace_size_limit));
-        self.trace_line_limit = trace_size_limit;
+        if self.trace.is_none(){
+            self.trace = Some(AllocRingBuffer::new(trace_size_limit));
+            self.trace_line_limit = trace_size_limit;
+        }
     }
 
     pub fn reset<MemT: Memory6502>(&mut self, memory: &mut MemT) {
@@ -412,10 +414,7 @@ impl CPU6502{
 
     fn add_trace(&mut self, state: CPUState){
         if let Some(buf) = self.trace.as_mut(){
-            if buf.len() == self.trace_line_limit{
-                buf.pop_front();
-            }
-            buf.push_back(state);
+            buf.push(state);
         }
     }
 
