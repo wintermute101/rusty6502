@@ -2,11 +2,34 @@ use super::cpu6502::memory::{Memory6502,Memory6502Debug};
 use std::fs::File;
 use std::io::prelude::*;
 
+pub struct C64CharaterRam{
+    pub ram: [u8; 1000],
+}
+
+impl C64CharaterRam {
+    pub fn new() -> Self{
+        //C64CharaterRam { ram: [0x20; 1000] }
+        C64CharaterRam { ram: [0; 1000] }
+    }
+}
+
+pub struct C64KeyboadMap{
+    pub col: [u8; 8],
+}
+
+impl C64KeyboadMap {
+    pub fn new() -> Self{
+        C64KeyboadMap { col: [0; 8] }
+    }
+}
+
 pub struct C64Memory{
     ram: [u8; 64*1024],
     kernal: Vec<u8>,
     basic_rom: Vec<u8>,
-    color_ram: [u8; 1024]
+    color_ram: [u8; 1024],
+    keyboard_map: C64KeyboadMap,
+    keyboard_matrix_col: u8,
 }
 
 impl C64Memory{
@@ -23,12 +46,16 @@ impl C64Memory{
         let kernal = C64Memory::load_rom("roms/kernal.901227-02.bin").expect("no kernal");
         let basic = C64Memory::load_rom("roms/basic.901226-01.bin").expect("no basic");
 
-        C64Memory { ram: [0; 64*1024], kernal: kernal, basic_rom: basic, color_ram: [0; 1024] }
+        C64Memory { ram: [0; 64*1024], kernal: kernal, basic_rom: basic, color_ram: [0; 1024], keyboard_map: C64KeyboadMap::new(), keyboard_matrix_col: 0 }
     }
 
-    fn screen_code_to_char(screen_code: u8) -> char{
+    pub fn set_keyboard_map(&mut self, keymap: C64KeyboadMap){
+        self.keyboard_map = keymap;
+    }
 
-        match (screen_code & 0x7f) {
+    pub fn screen_code_to_char(screen_code: u8) -> char{
+
+        match screen_code & 0x7f {
             0x00 => '@',
             0x01 => 'A',
             0x02 => 'B',
@@ -115,6 +142,11 @@ impl C64Memory{
         }
     }
 
+    pub fn get_character_ram(&self) -> C64CharaterRam{
+        let charram = self.ram[0x0400 .. 0x400+1000].try_into().unwrap();
+        C64CharaterRam { ram: charram }
+    }
+
 }
 
 impl Memory6502 for C64Memory{
@@ -125,6 +157,9 @@ impl Memory6502 for C64Memory{
                     println!("IO Color RAM Write {:#06x} => {:#04x}", address, value);
                     let adr = address - 0xd800;
                     self.color_ram[adr as usize] = value;
+                }
+                if address == 0xdc00{
+                    self.keyboard_matrix_col = value;
                 }
                 else{
                     println!("IO Write {:#06x} => {:#04x}", address, value);
@@ -143,8 +178,13 @@ impl Memory6502 for C64Memory{
                 self.kernal[adr as usize]
             }
             0xd000 ..= 0xdfff => { //IO
-                println!("IO Read {:#06x}", address);
-                0x00
+                if address == 0xdc01 && self.keyboard_matrix_col != 0{
+                    self.keyboard_map.col[self.keyboard_matrix_col.ilog2() as usize]
+                }
+                else{
+                    println!("IO Read {:#06x}", address);
+                    0x00
+                }
             }
             0xa000 ..= 0xbfff => { //Basic
                 let adr = address - 0xa000;

@@ -1,7 +1,9 @@
 mod cpu6502;
-mod c64memory;
+pub mod c64memory;
 use cpu6502::{CPU6502,CpuError,InterruptType};
-use c64memory::C64Memory;
+use c64memory::{C64Memory,C64CharaterRam};
+
+use self::c64memory::C64KeyboadMap;
 
 pub struct C64{
     cpu: CPU6502,
@@ -14,7 +16,6 @@ impl C64{
         let cpu = CPU6502::new();
 
         C64 { cpu: cpu, memory: mem }
-
     }
 
     pub fn reset(&mut self){
@@ -51,5 +52,13 @@ impl C64{
     pub fn show_screen_ram(&self, translated: bool){
         println!("****  Screen  ****");
         self.memory.show_screen_ram(translated);
+    }
+
+    pub fn get_character_ram(&self) -> C64CharaterRam{
+        self.memory.get_character_ram()
+    }
+
+    pub fn set_keyboard_map(&mut self, keymap: C64KeyboadMap){
+        self.memory.set_keyboard_map(keymap);
     }
 }

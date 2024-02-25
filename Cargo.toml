@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 ctrlc = "3.4.2"
+macroquad = "0.4.5"
 ringbuffer = "0.15.0"
 
 [profile.release]
