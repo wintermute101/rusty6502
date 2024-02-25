@@ -8,7 +8,6 @@ pub struct C64CharaterRam{
 
 impl C64CharaterRam {
     pub fn new() -> Self{
-        //C64CharaterRam { ram: [0x20; 1000] }
         C64CharaterRam { ram: [0; 1000] }
     }
 }
@@ -19,7 +18,7 @@ pub struct C64KeyboadMap{
 
 impl C64KeyboadMap {
     pub fn new() -> Self{
-        C64KeyboadMap { col: [0; 8] }
+        C64KeyboadMap { col: [0xff; 8] }
     }
 }
 
@@ -29,7 +28,11 @@ pub struct C64Memory{
     basic_rom: Vec<u8>,
     color_ram: [u8; 1024],
     keyboard_map: C64KeyboadMap,
-    keyboard_matrix_col: u8,
+    cia1_port_a: u8,
+    //cia1_port_b: u8,
+
+    cia1_port_a_dir: u8,
+    cia1_port_b_dir: u8,
 }
 
 impl C64Memory{
@@ -46,7 +49,14 @@ impl C64Memory{
         let kernal = C64Memory::load_rom("roms/kernal.901227-02.bin").expect("no kernal");
         let basic = C64Memory::load_rom("roms/basic.901226-01.bin").expect("no basic");
 
-        C64Memory { ram: [0; 64*1024], kernal: kernal, basic_rom: basic, color_ram: [0; 1024], keyboard_map: C64KeyboadMap::new(), keyboard_matrix_col: 0 }
+        C64Memory { ram: [0; 64*1024],
+            kernal: kernal,
+            basic_rom: basic,
+            color_ram: [0; 1024],
+            keyboard_map: C64KeyboadMap::new(),
+            cia1_port_a: 0,
+            cia1_port_a_dir: 0,
+            cia1_port_b_dir: 0, }
     }
 
     pub fn set_keyboard_map(&mut self, keymap: C64KeyboadMap){
@@ -56,71 +66,25 @@ impl C64Memory{
     pub fn screen_code_to_char(screen_code: u8) -> char{
 
         match screen_code & 0x7f {
-            0x00 => '@',
-            0x01 => 'A',
-            0x02 => 'B',
-            0x03 => 'C',
-            0x04 => 'D',
-            0x05 => 'E',
-            0x06 => 'F',
-            0x07 => 'G',
-            0x08 => 'H',
-            0x09 => 'I',
-            0x0a => 'J',
-            0x0b => 'K',
-            0x0c => 'L',
-            0x0d => 'M',
-            0x0e => 'N',
-            0x0f => 'O',
-            0x10 => 'P',
-            0x11 => 'Q',
-            0x12 => 'R',
-            0x13 => 'S',
-            0x14 => 'T',
-            0x15 => 'U',
-            0x16 => 'V',
-            0x17 => 'W',
-            0x18 => 'X',
-            0x19 => 'Y',
-            0x1a => 'Z',
-            0x1b => '[',
-            0x1c => '£',
-            0x1d => ']',
+            0x00 => '@', 0x01 => 'A', 0x02 => 'B', 0x03 => 'C',
+            0x04 => 'D', 0x05 => 'E', 0x06 => 'F', 0x07 => 'G',
+            0x08 => 'H', 0x09 => 'I', 0x0a => 'J', 0x0b => 'K',
+            0x0c => 'L', 0x0d => 'M', 0x0e => 'N', 0x0f => 'O',
+            0x10 => 'P', 0x11 => 'Q', 0x12 => 'R', 0x13 => 'S',
+            0x14 => 'T', 0x15 => 'U', 0x16 => 'V', 0x17 => 'W',
+            0x18 => 'X', 0x19 => 'Y', 0x1a => 'Z', 0x1b => '[',
+            0x1c => '£', 0x1d => ']',
 
-            0x20 => ' ',
-            0x21 => '!',
-            0x22 => '"',
-            0x23 => '#',
-            0x24 => '$',
-            0x25 => '%',
-            0x26 => '&',
-            0x27 => '`',
-            0x28 => '(',
-            0x29 => ')',
-            0x2a => '*',
-            0x2b => '+',
-            0x2c => ',',
-            0x2d => '-',
-            0x2e => '.',
-            0x2f => '/',
-            0x30 => '0',
-            0x31 => '1',
-            0x32 => '2',
-            0x33 => '3',
-            0x34 => '4',
-            0x35 => '5',
-            0x36 => '6',
-            0x37 => '7',
-            0x38 => '8',
-            0x39 => '9',
-            0x3a => ':',
-            0x3b => ';',
-            0x3c => '<',
-            0x3d => '=',
-            0x3e => '>',
-            0x3f => '?',
+            0x20 => ' ', 0x21 => '!', 0x22 => '"', 0x23 => '#',
+            0x24 => '$', 0x25 => '%', 0x26 => '&', 0x27 => '`',
+            0x28 => '(', 0x29 => ')', 0x2a => '*', 0x2b => '+',
+            0x2c => ',', 0x2d => '-', 0x2e => '.', 0x2f => '/',
+            0x30 => '0', 0x31 => '1', 0x32 => '2', 0x33 => '3',
+            0x34 => '4', 0x35 => '5', 0x36 => '6', 0x37 => '7',
+            0x38 => '8', 0x39 => '9', 0x3a => ':', 0x3b => ';',
+            0x3c => '<', 0x3d => '=', 0x3e => '>', 0x3f => '?',
 
-            _    => '.',
+            _    => '?',
         }
     }
 
@@ -129,12 +93,11 @@ impl C64Memory{
             let addr = 0x0400 + i*40;
             let mslicee: [u8; 40] = self.ram[addr .. addr+40].try_into().unwrap();
             if translate{
-                let translated: Vec<_> = mslicee.iter().map(|c| C64Memory::screen_code_to_char(*c)).collect();
-                print!("{:04x}: ", addr);
-                for i in translated{
-                    print!("{}", i);
-                }
-                println!("");
+                let translated = mslicee
+                    .iter()
+                    .map(|c| C64Memory::screen_code_to_char(*c))
+                    .fold(String::with_capacity(40), |mut a, c| {a.push(c); a});
+                println!("{:04x}: {}", addr, translated);
             }
             else{
                 println!("{:04x}: {:02x?}", addr, mslicee);
@@ -154,12 +117,21 @@ impl Memory6502 for C64Memory{
         match address {
             0xd000 ..= 0xdfff => { //IO
                 if address >= 0xd800 && address <= 0xdbff{
-                    println!("IO Color RAM Write {:#06x} => {:#04x}", address, value);
+                    //println!("IO Color RAM Write {:#06x} => {:#04x}", address, value);
                     let adr = address - 0xd800;
                     self.color_ram[adr as usize] = value;
                 }
-                if address == 0xdc00{
-                    self.keyboard_matrix_col = value;
+                else if address == 0xdc00{
+                    //println!("IO Keyboard Write {:#06x} => {:#04x}", address, value);
+                    self.cia1_port_a = value;
+                }
+                else if address == 0xdc02 {
+                    //println!("IO Write {:#06x} => {:#04x}", address, value);
+                    self.cia1_port_a_dir = value;
+                }
+                else if address == 0xdc03 {
+                    //println!("IO Write {:#06x} => {:#04x}", address, value);
+                    self.cia1_port_b_dir = value;
                 }
                 else{
                     println!("IO Write {:#06x} => {:#04x}", address, value);
@@ -178,11 +150,20 @@ impl Memory6502 for C64Memory{
                 self.kernal[adr as usize]
             }
             0xd000 ..= 0xdfff => { //IO
-                if address == 0xdc01 && self.keyboard_matrix_col != 0{
-                    self.keyboard_map.col[self.keyboard_matrix_col.ilog2() as usize]
+                if address == 0xdc01 && self.cia1_port_a != 0{
+                    let mut ret = 0xff;
+                    for (n, &col) in self.keyboard_map.col.iter().enumerate(){
+                        if self.cia1_port_a & (1 << n as u8) == 0{
+                            ret &= col;
+                        }
+                    }
+                    //println!("IO Keyboard {:#06x} <= {:#04x} {:#04x} {:?}", address, ret, self.cia1_port_a, self.keyboard_map.col);
+                    ret
                 }
                 else{
-                    println!("IO Read {:#06x}", address);
+                    if address != 0xd021{
+                        println!("IO Read {:#06x}", address);
+                    }
                     0x00
                 }
             }

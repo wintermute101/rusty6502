@@ -2249,10 +2249,10 @@ impl CPU6502{
             memory.write_memory(sp, self.P.value | 0b0010_0000); //Set Interrupt flag
         }
         let address = match int {
-            InterruptType::NMI | InterruptType::BRK => {
+            InterruptType::INT | InterruptType::BRK => {
                 memory.read_memory_word(0xfffe) // NMI int vec
             }
-            InterruptType::INT => {
+            InterruptType::NMI => {
                 memory.read_memory_word(0xfffa)
             }
         };

@@ -64,29 +64,30 @@ async fn main() {
             match to64_rx.try_recv(){
                 Err(e) if e == TryRecvError::Empty => {},
                 Err(e) => {
-                    eprintln!("Error rx {}", e);
+                    eprintln!("Error c64rx {}", e);
                     break;
                 }
                 Ok(c) => {
                     let mut keymap = C64KeyboadMap::new();
                     for i in c{
                         match i{
-                            KeyCode::A => keymap.col[2] |= 1 >> 2,
+                            KeyCode::A => {keymap.col[1] &= !(1 << 2);},
                             _ => {},
                         }
                     }
+                    //keymap.col[7] &= !(1 << 4);
                     c64.set_keyboard_map(keymap);
                 },
             }
 
             match now.elapsed(){
                 //v if v >= Duration::from_micros(16666) => {
-                v if v >= Duration::from_millis(200) => {
+                v if v >= Duration::from_millis(100) => {
                     //println!("Intterrupt! {}", cnt);
                     let charram = c64.get_character_ram();
-                     c64.interrupt();
-                     now = Instant::now();
-                     fromc64_tx.send(charram).unwrap(); //TODO fix unwrap
+                    c64.interrupt();
+                    now = Instant::now();
+                    fromc64_tx.send(charram).unwrap(); //TODO fix unwrap
                 }
                 _ => {}
              }
@@ -108,12 +109,11 @@ async fn main() {
         match fromc64_rx.try_recv(){
             Err(e) if e == TryRecvError::Empty => {},
             Err(e) => {
-                eprintln!("Error rx {}", e);
+                eprintln!("Error graphics rx {}", e);
                 break;
             }
             Ok(v) => {
                 charram = v;
-                println!("got new screen");
             },
         }
 
@@ -136,7 +136,7 @@ async fn main() {
             draw_text_ex(&line, 40.0, lnum as f32 * 18.0 + 100.0, TextParams{font_size: 18, font: Some(&c64_font), color: color_u8!(255,255,255,255), ..Default::default()});
         }
 
-        to64_tx.send(get_keys_pressed()).unwrap();//TODO fix unwrap
+        to64_tx.send(get_keys_down()).unwrap();//TODO fix unwrap
 
         next_frame().await;
     }
