@@ -229,10 +229,10 @@ impl Memory6502 for C64Memory{
                 self.processor_port_ddr = value;
             },
             0x0001 => {
-                self.processor_port = value & self.processor_port_ddr;
+                self.processor_port = value & self.processor_port_ddr & 0xf7 | 0x30; // 0xf7 datasette output 0, 0x30 motor off button not pressed
                 println!("6510 Port {:#06x} => {:#04x} {:#04x}", address, value, self.processor_port);
             },
-            0xd0d0 ..= 0xdfff =>{
+            0xd0d0 ..= 0xdfff if self.processor_port & 0xfc != 0 =>{
                 self.write_io(address, value);
             }
             _ => {
@@ -255,14 +255,17 @@ impl Memory6502 for C64Memory{
                 let adr = address - 0x8000;
                 self.external_rom.as_ref().unwrap()[adr as usize]
             }
-            0xd000 ..= 0xdfff => {
+            0xd000 ..= 0xdfff if self.processor_port & 0xfb != 0 && self.processor_port & 0xfc != 0 => {
                 self.read_io(address)
             }
-            0xe000 ..= 0xffff => { //Kernal
+            0xd000 ..= 0xdfff if self.processor_port & 0xfb == 0 && self.processor_port & 0xfc != 0 => {
+                todo!("character rom read")
+            }
+            0xe000 ..= 0xffff if self.processor_port & 0xfd != 0 => { //Kernal
                 let adr = address - 0xe000;
                 self.kernal[adr as usize]
             }
-            0xa000 ..= 0xbfff => { //Basic
+            0xa000 ..= 0xbfff if self.processor_port & 0xfc == 3 => { //Basic
                 let adr = address - 0xa000;
                 self.basic_rom[adr as usize]
             }
