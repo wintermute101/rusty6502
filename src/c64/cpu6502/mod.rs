@@ -110,7 +110,7 @@ pub enum InterruptType {
 
 #[derive(Clone)]
 #[allow(non_snake_case)]
-struct CPUState{
+pub struct CPUState{
     ins: u8,
     op1: u8,
     op2: u8,
@@ -290,7 +290,7 @@ impl CPUState {
 
 impl std::fmt::Debug for CPUState{
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error>{
-        fmt.write_str(&format!("INS={:#04x} A={:#04x} X={:#04x} Y={:#04x} P={:?} SP={:#04x} PC={:#06x} OP1={:#04x} OP2={:#04x} ADDR={:#06x} {}\n",
+        fmt.write_str(&format!("INS={:#04x} A={:#04x} X={:#04x} Y={:#04x} P={:?} SP={:#04x} PC={:#06x} OP1={:#04x} OP2={:#04x} ADDR={:#06x} {}",
         self.ins, self.A, self.X, self.Y, self.P, self.SP, self.PC, self.op1, self.op2, self.adr, self.instruction_name()))
     }
 }
@@ -422,9 +422,14 @@ impl CPU6502{
         if let Some(buf) = self.trace.as_ref(){
             println!("****  Trace   ****");
             for i in buf{
-                print!("{:?}", i);
+                println!("{:?}", i);
             }
         }
+    }
+
+    ///will panic if trace is not enabled
+    pub fn get_last_state(&self) -> CPUState{
+        self.trace.as_ref().expect("Trace need to be enabled").get(0).expect("To trace").clone()
     }
 
     pub fn show_cpu_debug(&self){
@@ -488,13 +493,14 @@ impl CPU6502{
         }
     }
 
-    pub fn run_single<MemT: Memory6502>(&mut self, memory: &mut MemT) -> Result<(), CpuError>{
+    pub fn run_single<MemT: Memory6502>(&mut self, memory: &mut MemT) -> Result<u16, CpuError>{
         let ins = memory.read_memory(self.PC);
+        let return_pc = self.PC;
         let mut cpu_state = CPUState::new(self, ins);
         //build cpu state before we mess PC
         let pc = self.PC.overflowing_add(1);
         if pc.1{
-            return Err(CpuError::new("CPU Windup", self.PC));
+            return Err(CpuError::new("CPU Program Counter Windup", self.PC));
         }
         self.PC = pc.0;
 
@@ -2227,7 +2233,7 @@ impl CPU6502{
         }
         self.prev_PC = self.PC;
 
-        Ok(())
+        Ok(return_pc)
     }
 
     pub fn interrupt<MemT: Memory6502>(&mut self, int: InterruptType, memory: &mut MemT){
@@ -2250,10 +2256,10 @@ impl CPU6502{
         }
         let address = match int {
             InterruptType::INT | InterruptType::BRK => {
-                memory.read_memory_word(0xfffe) // NMI int vec
+                memory.read_memory_word(0xfffe)
             }
             InterruptType::NMI => {
-                memory.read_memory_word(0xfffa)
+                memory.read_memory_word(0xfffa) // NMI int vec
             }
         };
 

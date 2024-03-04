@@ -28,6 +28,10 @@ async fn main() {
         r.store(false, Ordering::SeqCst);
     }).expect("Error setting Ctrl-C handler");
 
+    let mut enable_dbug_at: Option<u16> = None;
+
+    //enable_dbug_at = Some(0xff48);
+
     let (fromc64_tx,fromc64_rx) = channel();
     let (to64_tx,to64_rx) = channel();
 
@@ -45,6 +49,8 @@ async fn main() {
         c64.enable_trace(64);
         c64.reset();
 
+        let mut debug_mode = false;
+
         let mut cnt = 0;
 
         let mut now = Instant::now();
@@ -53,12 +59,52 @@ async fn main() {
 
             cnt += 1;
 
-            match r{
-                Ok(()) => {},
+            let pc = match r{
+                Ok(pc) => {
+                    if let Some(debug_at) = enable_dbug_at{
+                        if debug_at == pc{
+                            debug_mode = true;
+                            println!("Entering debug mode F5 to step");
+                        }
+                    }
+                    pc
+                },
                 Err(e) => {
                     eprintln!("C64 Cpu error: {}", e);
                     break;
                 }
+            };
+
+            if debug_mode{
+                let state = c64.get_last_state();
+                println!("{:?}", state);
+                loop{
+                    match to64_rx.recv(){
+                        Ok(c) => {
+                            let mut need_break = false;
+                            for i in c{
+                                if i == KeyCode::F5{
+                                    need_break = true;
+                                    //break;
+                                }
+                                else if i == KeyCode::F7{
+                                    debug_mode = false;
+                                    need_break = true;
+                                    //break;
+                                }
+                            }
+                            if need_break{
+                                break;
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Error c64rx {}", e);
+                            return;
+                        }
+                    }
+                }
+                //let state = c64.get_last_state();
+                //println!("{:?}", state);
             }
 
             match to64_rx.try_recv(){
@@ -72,28 +118,45 @@ async fn main() {
                     for i in c{
                         match i{
                             KeyCode::A => {keymap.col[1] &= !(1 << 2);},
-                            _ => {},
+                            KeyCode::D => {keymap.col[2] &= !(1 << 2);},
+                            KeyCode::G => {keymap.col[3] &= !(1 << 2);},
+                            KeyCode::J => {keymap.col[4] &= !(1 << 2);},
+                            KeyCode::L => {keymap.col[5] &= !(1 << 2);},
+                            KeyCode::Semicolon => {keymap.col[6] &= !(1 << 2);},
+
+                            KeyCode::W => {keymap.col[1] &= !(1 << 1);},
+                            KeyCode::R => {keymap.col[2] &= !(1 << 1);},
+                            KeyCode::Y => {keymap.col[3] &= !(1 << 1);},
+                            KeyCode::I => {keymap.col[4] &= !(1 << 1);},
+                            KeyCode::P => {keymap.col[5] &= !(1 << 1);},
+
+                            KeyCode::F6 => {debug_mode = true;},
+
+                            _ => {/*println!("Not supported key {:?}", i)*/},
                         }
                     }
-                    //keymap.col[7] &= !(1 << 4);
+                    //keymap.col[1] &= !(1 << 2);
                     c64.set_keyboard_map(keymap);
                 },
             }
 
-            match now.elapsed(){
-                //v if v >= Duration::from_micros(16666) => {
-                v if v >= Duration::from_millis(100) => {
-                    //println!("Intterrupt! {}", cnt);
-                    let charram = c64.get_character_ram();
-                    c64.interrupt();
-                    now = Instant::now();
-                    fromc64_tx.send(charram).unwrap(); //TODO fix unwrap
+            if !debug_mode {
+                match now.elapsed(){
+                    v if v >= Duration::from_micros(16666) => {
+                    //v if v >= Duration::from_millis(100) => {
+                        let charram = c64.get_character_ram();
+                        let t1 = Instant::now();
+                        //c64.interrupt();
+                        fromc64_tx.send(charram).unwrap(); //TODO fix unwrap
+                        now = Instant::now();
+                        //println!("Intterrupt! PC={:#04x} {:?} now {:?} time {:?} cnt {}", pc, v, now, t1.elapsed(), cnt);
+                    }
+                    _ => {}
                 }
-                _ => {}
-             }
+            }
 
-             if cnt % 1000 == 0{
-                thread::sleep(Duration::from_millis(1));
+             if cnt % 100 == 0{
+                thread::sleep(Duration::from_micros(100));
              }
         }
         println!("Exiting...");
@@ -136,7 +199,10 @@ async fn main() {
             draw_text_ex(&line, 40.0, lnum as f32 * 18.0 + 100.0, TextParams{font_size: 18, font: Some(&c64_font), color: color_u8!(255,255,255,255), ..Default::default()});
         }
 
-        to64_tx.send(get_keys_down()).unwrap();//TODO fix unwrap
+        let keys = get_keys_pressed();
+        if !keys.is_empty(){
+            to64_tx.send(keys).unwrap();//TODO fix unwrap
+        }
 
         next_frame().await;
     }

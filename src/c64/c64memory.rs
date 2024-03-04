@@ -22,17 +22,30 @@ impl C64KeyboadMap {
     }
 }
 
+struct C64Timer{
+
+}
+
 pub struct C64Memory{
     ram: [u8; 64*1024],
     kernal: Vec<u8>,
     basic_rom: Vec<u8>,
     color_ram: [u8; 1024],
+    external_rom: Option<Vec<u8>>,
+    processor_port_ddr: u8,
+    processor_port: u8,
+
     keyboard_map: C64KeyboadMap,
     cia1_port_a: u8,
     //cia1_port_b: u8,
 
     cia1_port_a_dir: u8,
     cia1_port_b_dir: u8,
+
+    border_color: u8,
+    background_color: u8,
+    screen_control1: u8,
+    screen_control2: u8,
 }
 
 impl C64Memory{
@@ -48,15 +61,27 @@ impl C64Memory{
     pub fn new() -> Self{
         let kernal = C64Memory::load_rom("roms/kernal.901227-02.bin").expect("no kernal");
         let basic = C64Memory::load_rom("roms/basic.901226-01.bin").expect("no basic");
+        //let external_rom = Some(C64Memory::load_rom("roms/c64_burn-in_7.2_5.6.89.bin").expect("no rom"));
+        let external_rom = Some(C64Memory::load_rom("roms/c64_final_burnin_3.0_5.6.89.bin").expect("no rom"));
+        //let external_rom = Some(C64Memory::load_rom("roms/c64_diag_rev4.1.1.bin").expect("no rom"));
+        //let external_rom = None;
 
         C64Memory { ram: [0; 64*1024],
             kernal: kernal,
             basic_rom: basic,
             color_ram: [0; 1024],
+            external_rom: external_rom,
+            processor_port_ddr: 0x2f,
+            processor_port: 0x37,
             keyboard_map: C64KeyboadMap::new(),
             cia1_port_a: 0,
             cia1_port_a_dir: 0,
-            cia1_port_b_dir: 0, }
+            cia1_port_b_dir: 0,
+            border_color: 0,
+            background_color:0,
+            screen_control1: 0x1b,
+            screen_control2: 0xc8
+        }
     }
 
     pub fn set_keyboard_map(&mut self, keymap: C64KeyboadMap){
@@ -110,32 +135,105 @@ impl C64Memory{
         C64CharaterRam { ram: charram }
     }
 
+    fn write_io(&mut self, address: u16, value: u8){
+        match address {
+            0xd800 ..= 0xdbff => {
+                //println!("IO Color RAM Write {:#06x} => {:#04x}", address, value);
+                let adr = address - 0xd800;
+                self.color_ram[adr as usize] = value;
+            }
+            0xd000 ..= 0xd010 => {}, //sprite
+            0xd011 => {self.screen_control1 = value;},
+            0xd015 => {
+                if value != 0{todo!("sprite");};
+            },
+            0xd016 => {self.screen_control2 = value},
+            0xd020 => {self.border_color = value;},
+            0xd021 => {self.background_color = value;},
+            0xdc00 ..= 0xdc0f => {
+                println!("CIA1 Write {:#06x} => {:#04x}", address, value);
+            }
+            0xdd00 ..= 0xdd0f => {
+                println!("CIA2 Write {:#06x} => {:#04x}", address, value);
+            }
+
+            /*0xdc00 => {
+                //println!("IO Keyboard Write {:#06x} => {:#04x}", address, value);
+                self.cia1_port_a = value;
+            },
+            0xdc02 => {
+                //println!("IO Write {:#06x} => {:#04x}", address, value);
+                self.cia1_port_a_dir = value;
+            },
+            0xdc03 => {
+                //println!("IO Write {:#06x} => {:#04x}", address, value);
+                self.cia1_port_b_dir = value;
+            },*/
+            0xd000 ..= 0xdfff => { //IO
+                println!("IO Write {:#06x} => {:#04x}", address, value);
+            },
+            _ => {
+                panic!("Address {:#06x} is not IO", address);
+            }
+        }
+
+    }
+
+    fn read_io(&self, address: u16) -> u8
+    {
+        match address {
+            0xd011 => {self.screen_control1},
+            0xd016 => {self.screen_control2},
+            0xd020 => {self.border_color},
+            0xd021 => {self.background_color},
+            /*0xdc01 => {
+                if self.cia1_port_a != 0{
+                    let mut ret = 0xff;
+                    for (n, &col) in self.keyboard_map.col.iter().enumerate(){
+                        if self.cia1_port_a & (1 << n as u8) == 0{
+                            ret &= col;
+                        }
+                    }
+                    println!("IO Keyboard {:#06x} <= {:#04x} {:#04x} {:?}", address, ret, self.cia1_port_a, self.keyboard_map.col);
+                    ret
+                }
+                else {
+                    0xff
+                }
+            }
+            0xdc0d => {0x81}, //int ctrl 1 - Timer A underflow*/
+            0xdc00 ..= 0xdc0f => {
+                println!("CIA1 Read {:#06x}", address);
+                0x00
+            }
+            0xdd00 ..= 0xdd0f => {
+                println!("CIA2 Read {:#06x}", address);
+                0x00
+            }
+            0xd000 ..= 0xdfff => { //IO
+                println!("IO Read {:#06x}", address);
+                0x00
+            }
+            _ => {
+                panic!("Address {:#06x} is not IO", address);
+            }
+        }
+    }
 }
 
 impl Memory6502 for C64Memory{
     fn write_memory(&mut self, address: u16, value: u8) {
         match address {
-            0xd000 ..= 0xdfff => { //IO
-                if address >= 0xd800 && address <= 0xdbff{
-                    //println!("IO Color RAM Write {:#06x} => {:#04x}", address, value);
-                    let adr = address - 0xd800;
-                    self.color_ram[adr as usize] = value;
-                }
-                else if address == 0xdc00{
-                    //println!("IO Keyboard Write {:#06x} => {:#04x}", address, value);
-                    self.cia1_port_a = value;
-                }
-                else if address == 0xdc02 {
-                    //println!("IO Write {:#06x} => {:#04x}", address, value);
-                    self.cia1_port_a_dir = value;
-                }
-                else if address == 0xdc03 {
-                    //println!("IO Write {:#06x} => {:#04x}", address, value);
-                    self.cia1_port_b_dir = value;
-                }
-                else{
-                    println!("IO Write {:#06x} => {:#04x}", address, value);
-                }
+            0x0000 => {
+                println!("6510 DDR {:#06x} => {:#04x}", address, value);
+                self.processor_port_ddr = value;
+            },
+            0x0001 => {
+                self.processor_port = value & self.processor_port_ddr;
+                println!("6510 Port {:#06x} => {:#04x} {:#04x}", address, value, self.processor_port);
+            },
+            0xd0d0 ..= 0xdfff =>{
+                self.write_io(address, value);
             }
             _ => {
                 self.ram[address as usize] = value;
@@ -145,33 +243,29 @@ impl Memory6502 for C64Memory{
 
     fn read_memory(&self, address: u16) -> u8 {
         match address{
+            0x0000 => {
+                println!("6510 DDR {:#06x}", address);
+                self.processor_port_ddr
+            },
+            0x0001 => {
+                println!("6510 Port {:#06x}", address);
+                self.processor_port
+            },
+            0x8000 ..= 0x9fff if self.external_rom.is_some() => {
+                let adr = address - 0x8000;
+                self.external_rom.as_ref().unwrap()[adr as usize]
+            }
+            0xd000 ..= 0xdfff => {
+                self.read_io(address)
+            }
             0xe000 ..= 0xffff => { //Kernal
                 let adr = address - 0xe000;
                 self.kernal[adr as usize]
-            }
-            0xd000 ..= 0xdfff => { //IO
-                if address == 0xdc01 && self.cia1_port_a != 0{
-                    let mut ret = 0xff;
-                    for (n, &col) in self.keyboard_map.col.iter().enumerate(){
-                        if self.cia1_port_a & (1 << n as u8) == 0{
-                            ret &= col;
-                        }
-                    }
-                    //println!("IO Keyboard {:#06x} <= {:#04x} {:#04x} {:?}", address, ret, self.cia1_port_a, self.keyboard_map.col);
-                    ret
-                }
-                else{
-                    if address != 0xd021{
-                        println!("IO Read {:#06x}", address);
-                    }
-                    0x00
-                }
             }
             0xa000 ..= 0xbfff => { //Basic
                 let adr = address - 0xa000;
                 self.basic_rom[adr as usize]
             }
-
             _ => {
                 self.ram[address as usize]
             }

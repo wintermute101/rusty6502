@@ -3,7 +3,7 @@ pub mod c64memory;
 use cpu6502::{CPU6502,CpuError,InterruptType};
 use c64memory::{C64Memory,C64CharaterRam};
 
-use self::c64memory::C64KeyboadMap;
+use self::{c64memory::C64KeyboadMap, cpu6502::CPUState};
 
 pub struct C64{
     cpu: CPU6502,
@@ -24,11 +24,11 @@ impl C64{
 
     pub fn run(&mut self) -> Result<(), CpuError>{
         loop{
-            self.cpu.run_single(&mut self.memory)?
+            self.cpu.run_single(&mut self.memory)?;
         }
     }
 
-    pub fn run_single(&mut self) -> Result<(), CpuError>{
+    pub fn run_single(&mut self) -> Result<u16, CpuError>{
         self.cpu.run_single(&mut self.memory)
     }
 
@@ -60,5 +60,9 @@ impl C64{
 
     pub fn set_keyboard_map(&mut self, keymap: C64KeyboadMap){
         self.memory.set_keyboard_map(keymap);
+    }
+
+    pub fn get_last_state(&self) -> CPUState{
+        self.cpu.get_last_state()
     }
 }
