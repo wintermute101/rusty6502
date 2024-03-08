@@ -65,4 +65,8 @@ impl C64{
     pub fn get_last_state(&self) -> CPUState{
         self.cpu.get_last_state()
     }
+
+    pub fn get_character_rom(&self, always: bool) -> Option<[u8; 4096]>{
+        self.memory.get_character_rom(always)
+    }
 }

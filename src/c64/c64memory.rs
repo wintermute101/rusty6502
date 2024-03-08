@@ -1,6 +1,7 @@
 use super::cpu6502::memory::{Memory6502,Memory6502Debug};
 use std::fs::File;
 use std::io::prelude::*;
+use std::time::{Duration,Instant};
 
 pub struct C64CharaterRam{
     pub ram: [u8; 1000],
@@ -23,13 +24,75 @@ impl C64KeyboadMap {
 }
 
 struct C64Timer{
+    minute: Option<u8>,
+    second: Option<u8>,
+    tens_second: Option<u8>,
+    start: Option<Instant>,
+    stop: Option<Instant>,
+}
 
+impl C64Timer{
+    fn new() -> Self{
+        C64Timer {
+            minute: None,
+            second: None,
+            tens_second: None,
+            start: Some(Instant::now()),
+            stop: None }
+    }
+
+    fn get_hour(&mut self) -> u8{
+        if let Some(start) = self.start{
+            let t = start.elapsed();
+            let s = t.as_secs();
+            let ms = t.as_millis();
+
+            self.second = Some((s % 60) as u8);
+            self.minute = Some((s/60 % 60) as u8);
+            self.tens_second = Some((ms / 100 % 100) as u8);
+
+            (s/3600 % 24) as u8
+        }
+        else{
+            0
+        }
+    }
+
+    fn get_minute(&mut self) -> u8{
+        if let Some(m) = self.minute{
+            m
+        }
+        else{
+            todo!("min?");
+        }
+    }
+
+    fn get_second(&mut self) -> u8{
+        if let Some(s) = self.second{
+            s
+        }
+        else{
+            todo!("sec?")
+        }
+    }
+
+    fn get_tens(&mut self) -> u8{
+        if let Some(tens) = self.tens_second.take(){
+            self.minute = None;
+            self.second = None;
+            tens
+        }
+        else{
+            todo!("tens?");
+        }
+    }
 }
 
 pub struct C64Memory{
     ram: [u8; 64*1024],
     kernal: Vec<u8>,
     basic_rom: Vec<u8>,
+    character_rom: Vec<u8>,
     color_ram: [u8; 1024],
     external_rom: Option<Vec<u8>>,
     processor_port_ddr: u8,
@@ -41,6 +104,8 @@ pub struct C64Memory{
 
     cia1_port_a_dir: u8,
     cia1_port_b_dir: u8,
+
+    cia1_timer: C64Timer,
 
     border_color: u8,
     background_color: u8,
@@ -60,6 +125,7 @@ impl C64Memory{
 
     pub fn new() -> Self{
         let kernal = C64Memory::load_rom("roms/kernal.901227-02.bin").expect("no kernal");
+        let charater_rom = C64Memory::load_rom("roms/characters.901225-01.bin").expect("no char rom");
         let basic = C64Memory::load_rom("roms/basic.901226-01.bin").expect("no basic");
         //let external_rom = Some(C64Memory::load_rom("roms/c64_burn-in_7.2_5.6.89.bin").expect("no rom"));
         let external_rom = Some(C64Memory::load_rom("roms/c64_final_burnin_3.0_5.6.89.bin").expect("no rom"));
@@ -69,6 +135,7 @@ impl C64Memory{
         C64Memory { ram: [0; 64*1024],
             kernal: kernal,
             basic_rom: basic,
+            character_rom: charater_rom,
             color_ram: [0; 1024],
             external_rom: external_rom,
             processor_port_ddr: 0x2f,
@@ -77,6 +144,7 @@ impl C64Memory{
             cia1_port_a: 0,
             cia1_port_a_dir: 0,
             cia1_port_b_dir: 0,
+            cia1_timer: C64Timer::new(),
             border_color: 0,
             background_color:0,
             screen_control1: 0x1b,
@@ -135,6 +203,16 @@ impl C64Memory{
         C64CharaterRam { ram: charram }
     }
 
+    pub fn get_character_rom(&self, always: bool) -> Option<[u8; 4096]>{
+        if always{
+            let ret: [u8; 4096] = self.character_rom.clone().try_into().expect("todo");
+            Some(ret)
+        }
+        else {
+            None
+        }
+    }
+
     fn write_io(&mut self, address: u16, value: u8){
         match address {
             0xd800 ..= 0xdbff => {
@@ -179,7 +257,7 @@ impl C64Memory{
 
     }
 
-    fn read_io(&self, address: u16) -> u8
+    fn read_io(&mut self, address: u16) -> u8
     {
         match address {
             0xd011 => {self.screen_control1},
@@ -202,6 +280,26 @@ impl C64Memory{
                 }
             }
             0xdc0d => {0x81}, //int ctrl 1 - Timer A underflow*/
+            0xdc08 => {
+                let t = self.cia1_timer.get_tens();
+                println!("CIA1 Tens S {}", t);
+                t
+            }
+            0xdc09 => {
+                let s = self.cia1_timer.get_second();
+                println!("CIA1 Sec {}", s);
+                s
+            }
+            0xdc0a => {
+                let m = self.cia1_timer.get_minute();
+                println!("CIA1 Min {}", m);
+                m
+            }
+            0xdc0b => {
+                let h = self.cia1_timer.get_hour();
+                println!("CIA1 Hour {}", h);
+                h
+            }
             0xdc00 ..= 0xdc0f => {
                 println!("CIA1 Read {:#06x}", address);
                 0x00
@@ -232,7 +330,7 @@ impl Memory6502 for C64Memory{
                 self.processor_port = value & self.processor_port_ddr & 0xf7 | 0x30; // 0xf7 datasette output 0, 0x30 motor off button not pressed
                 println!("6510 Port {:#06x} => {:#04x} {:#04x}", address, value, self.processor_port);
             },
-            0xd0d0 ..= 0xdfff if self.processor_port & 0xfc != 0 =>{
+            0xd0d0 ..= 0xdfff /*if self.processor_port & 0xfc != 0*/ =>{
                 self.write_io(address, value);
             }
             _ => {
@@ -241,7 +339,7 @@ impl Memory6502 for C64Memory{
         }
     }
 
-    fn read_memory(&self, address: u16) -> u8 {
+    fn read_memory(&mut self, address: u16) -> u8 {
         match address{
             0x0000 => {
                 println!("6510 DDR {:#06x}", address);
@@ -251,21 +349,26 @@ impl Memory6502 for C64Memory{
                 println!("6510 Port {:#06x}", address);
                 self.processor_port
             },
-            0x8000 ..= 0x9fff if self.external_rom.is_some() => {
+            0x8000 ..= 0x9fff => {
                 let adr = address - 0x8000;
-                self.external_rom.as_ref().unwrap()[adr as usize]
+                if let Some(ext_rom) = self.external_rom.as_ref(){
+                    ext_rom[adr as usize]
+                }
+                else{
+                    self.ram[address as usize]
+                }
             }
-            0xd000 ..= 0xdfff if self.processor_port & 0xfb != 0 && self.processor_port & 0xfc != 0 => {
+            0xd000 ..= 0xdfff /*if self.processor_port & 0xfb != 0 && self.processor_port & 0xfc != 0*/ => {
                 self.read_io(address)
             }
-            0xd000 ..= 0xdfff if self.processor_port & 0xfb == 0 && self.processor_port & 0xfc != 0 => {
+            /*0xd000 ..= 0xdfff if self.processor_port & 0xfb == 0 && self.processor_port & 0xfc != 0 => {
                 todo!("character rom read")
-            }
-            0xe000 ..= 0xffff if self.processor_port & 0xfd != 0 => { //Kernal
+            }*/
+            0xe000 ..= 0xffff /*if self.processor_port & 0xfd != 0*/ => { //Kernal
                 let adr = address - 0xe000;
                 self.kernal[adr as usize]
             }
-            0xa000 ..= 0xbfff if self.processor_port & 0xfc == 3 => { //Basic
+            0xa000 ..= 0xbfff /*if self.processor_port & 0xfc == 3*/ => { //Basic
                 let adr = address - 0xa000;
                 self.basic_rom[adr as usize]
             }
@@ -275,7 +378,7 @@ impl Memory6502 for C64Memory{
         }
     }
 
-    fn read_memory_word(&self, address: u16) -> u16 {
+    fn read_memory_word(&mut self, address: u16) -> u16 {
         let lo = self.read_memory(address);
         let hi = self.read_memory(address.overflowing_add(1).0);
 

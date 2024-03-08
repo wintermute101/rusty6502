@@ -18,6 +18,11 @@ fn window_conf() -> Conf {
     }
 }
 
+enum ScreenUpdate{
+    Chars(C64CharaterRam),
+    Chars_ram([u8; 4096]),
+}
+
 #[macroquad::main(window_conf)]
 async fn main() {
     let running = Arc::new(AtomicBool::new(true));
@@ -35,9 +40,10 @@ async fn main() {
     let (fromc64_tx,fromc64_rx) = channel();
     let (to64_tx,to64_rx) = channel();
 
-    let color = color_u8!(255,0,0,255);
-    let mut image = Image::gen_image_color(400, 400, color);
-    //let texture: Texture2D = Texture2D::from_image(&image);
+    //let color = color_u8!(0x50,0x45,0x9b,255);
+    let color = color_u8!(0x88,0x7e,0xcb,255);
+    let mut image = Image::gen_image_color(384, 272, color);
+    let texture: Texture2D = Texture2D::from_image(&image);
 
     let c64_font = load_ttf_font("fonts/C64_Pro_Mono-STYLE.ttf").await.expect("c64 font");
 
@@ -52,6 +58,9 @@ async fn main() {
         let mut debug_mode = false;
 
         let mut cnt = 0;
+
+        let mut character_set = c64.get_character_rom(true);
+        fromc64_tx.send(ScreenUpdate::Chars_ram(character_set.unwrap())).expect("send");
 
         let mut now = Instant::now();
         while running.load(Ordering::SeqCst){
@@ -147,7 +156,7 @@ async fn main() {
                         let charram = c64.get_character_ram();
                         let t1 = Instant::now();
                         //c64.interrupt();
-                        fromc64_tx.send(charram).unwrap(); //TODO fix unwrap
+                        fromc64_tx.send(ScreenUpdate::Chars(charram)).unwrap(); //TODO fix unwrap
                         now = Instant::now();
                         //println!("Intterrupt! PC={:#04x} {:?} now {:?} time {:?} cnt {}", pc, v, now, t1.elapsed(), cnt);
                     }
@@ -165,10 +174,11 @@ async fn main() {
     }).expect("thread spawn error");
 
     let mut charram = C64CharaterRam::new();
+    let mut charrom = None;
+    let mut need_redraw = false;
 
     while r2.load(Ordering::SeqCst){
         clear_background(BLACK);
-        //draw_texture(&texture, 0., 0., WHITE);
         match fromc64_rx.try_recv(){
             Err(e) if e == TryRecvError::Empty => {},
             Err(e) => {
@@ -176,19 +186,71 @@ async fn main() {
                 break;
             }
             Ok(v) => {
-                charram = v;
+                match v{
+                    ScreenUpdate::Chars(c) => {
+                        charram = c;
+                        need_redraw = true;
+                    },
+                    ScreenUpdate::Chars_ram(r) => {
+                        charrom = Some(r);
+                        need_redraw = true;
+                    },
+                }
             },
         }
 
-        let data = image.get_image_data_mut();
+        if charrom.is_none() || !need_redraw{
+            next_frame().await;
+            continue;
+        }
 
-        data[cnt] = color_u8!(0,255,0,255).into();
+        let image_w = image.width();
+        let image_x_off = (image_w - 320) / 2;
+        let image_y_off = (image.height() - 200) / 2;
+        let image_data = image.get_image_data_mut();
 
         cnt += 1;
 
-        //texture.update(&image);
+        let bg_color = color_u8!(0x50,0x45,0x9b,255);
+        let fg_color = color_u8!(0x88,0x7e,0xcb,255);
 
+        let chars = charram.ram;
         for lnum in 0..25 as usize{
+            for i in 0..40 as usize{
+                let symbol = chars[lnum*40 + i];
+                let symbol_data: [u8; 8] = match charrom.unwrap()[(symbol as usize *8) .. (symbol as usize *8+8)].try_into(){
+                    Ok(s) => {
+                        s
+                    }
+                    Err(e) =>{
+                        panic!("err {} symbol {:#04x}", e, symbol);
+                    }
+                };
+                for y in 0..8{
+                    let symbol_row = symbol_data[y];
+                    for x in 0..8{
+
+                        let px = (lnum*8+y+image_y_off)*image_w + i*8 + x + image_x_off;
+                        let bit = (symbol_row >> (7-x)) & 0x1;
+                        if bit == 1{
+                            image_data[px] = fg_color.into();
+                        }
+                        else{
+                            image_data[px] = bg_color.into();
+                        }
+                    }
+                }
+            }
+        }
+
+        texture.update(&image);
+        let tex_params = DrawTextureParams {
+            dest_size: Some(vec2(screen_width(), screen_height())),
+            ..Default::default()
+        };
+        draw_texture_ex(&texture, 0., 0., WHITE, tex_params);
+
+        /*for lnum in 0..25 as usize{
             let line = charram.ram
                 .iter()
                 .skip(lnum*40)
@@ -197,7 +259,7 @@ async fn main() {
                 .fold(String::with_capacity(40), |mut a, c| {a.push(c); a});
 
             draw_text_ex(&line, 40.0, lnum as f32 * 18.0 + 100.0, TextParams{font_size: 18, font: Some(&c64_font), color: color_u8!(255,255,255,255), ..Default::default()});
-        }
+        }*/
 
         let keys = get_keys_pressed();
         if !keys.is_empty(){

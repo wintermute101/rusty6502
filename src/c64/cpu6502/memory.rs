@@ -3,8 +3,8 @@ use std::io::prelude::*;
 
 pub trait Memory6502 {
     fn write_memory(&mut self, address: u16, value: u8);
-    fn read_memory(&self, address: u16) -> u8;
-    fn read_memory_word(&self, address: u16) -> u16;
+    fn read_memory(&mut self, address: u16) -> u8;
+    fn read_memory_word(&mut self, address: u16) -> u16;
 }
 
 pub trait Memory6502Debug {
@@ -68,7 +68,7 @@ impl Memory6502 for Memory{
         }
     }
 
-    fn read_memory(&self, address: u16) -> u8{
+    fn read_memory(&mut self, address: u16) -> u8{
         if let Some(mem) = self.memory.get(address as usize){
             *mem
         }
@@ -79,7 +79,7 @@ impl Memory6502 for Memory{
         }
     }
 
-    fn read_memory_word(&self, address: u16) -> u16{
+    fn read_memory_word(&mut self, address: u16) -> u16{
         if let Ok(m) = self.memory[address as usize .. (address as usize) + 2].try_into(){
             u16::from_le_bytes(m)
         }
