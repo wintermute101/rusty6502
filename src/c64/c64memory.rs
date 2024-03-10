@@ -27,8 +27,16 @@ struct C64Timer{
     minute: Option<u8>,
     second: Option<u8>,
     tens_second: Option<u8>,
-    start: Option<Instant>,
+    start: Instant,
     stop: Option<Instant>,
+
+    timer_a_set: u16,
+    timer_a_value: u16,
+    timer_b_set: u16,
+    timer_b_value: u16,
+    int_vec: u8,
+    timer_a_ctrl: u8,
+    timer_b_ctrl: u8,
 }
 
 impl C64Timer{
@@ -37,25 +45,82 @@ impl C64Timer{
             minute: None,
             second: None,
             tens_second: None,
-            start: Some(Instant::now()),
-            stop: None }
+            start: Instant::now(),
+            stop: None,
+            timer_a_set: 0,
+            timer_a_value: 0,
+            timer_b_set: 0,
+            timer_b_value: 0,
+            int_vec: 0,
+            timer_a_ctrl: 0,
+            timer_b_ctrl: 0,
+        }
+    }
+
+    fn tick(&mut self){
+        /*let t = self.start.elapsed().as_micros();
+        if self.timer_a_ctrl & 0x01 != 0{
+
+        }*/
+    }
+
+    fn set_hour(&mut self, hour: u8){
+
+    }
+
+    fn set_minute(&mut self, minute: u8){
+
+    }
+
+    fn set_second(&mut self, second: u8){
+
+    }
+
+    fn set_tens(&mut self, tens: u8){
+
+    }
+
+    fn set_timer_a_low(&mut self, low: u8){
+        self.timer_a_set = self.timer_a_set & 0xff00 | low as u16;
+    }
+
+    fn set_timer_a_high(&mut self, high: u8){
+        self.timer_a_set = self.timer_a_set & 0x00ff | (high as u16) << 8;
+    }
+
+    fn set_timer_b_low(&mut self, low: u8){
+        self.timer_b_set = self.timer_b_set & 0xff00 | low as u16;
+    }
+
+    fn set_timer_b_high(&mut self, high: u8){
+        self.timer_b_set = self.timer_b_set & 0x00ff | (high as u16) << 8;
+    }
+
+    fn set_timer_int(&mut self, int: u8){
+        self.int_vec = int;
+    }
+
+    fn set_timer_a_ctrl(&mut self, ctrl: u8){
+        self.timer_a_ctrl = ctrl;
+        if ctrl & 0x01 != 0{
+            self.timer_a_value = self.timer_b_set;
+        }
+    }
+
+    fn set_timer_b_ctrl(&mut self, ctrl: u8){
+        self.timer_b_ctrl = ctrl;
     }
 
     fn get_hour(&mut self) -> u8{
-        if let Some(start) = self.start{
-            let t = start.elapsed();
-            let s = t.as_secs();
-            let ms = t.as_millis();
+        let t = self.start.elapsed();
+        let s = t.as_secs();
+        let ms = t.as_millis();
 
-            self.second = Some((s % 60) as u8);
-            self.minute = Some((s/60 % 60) as u8);
-            self.tens_second = Some((ms / 100 % 100) as u8);
+        self.second = Some((s % 60) as u8);
+        self.minute = Some((s/60 % 60) as u8);
+        self.tens_second = Some((ms / 100 % 10) as u8);
 
-            (s/3600 % 24) as u8
-        }
-        else{
-            0
-        }
+        (s/3600 % 24) as u8
     }
 
     fn get_minute(&mut self) -> u8{
@@ -106,6 +171,7 @@ pub struct C64Memory{
     cia1_port_b_dir: u8,
 
     cia1_timer: C64Timer,
+    cia2_timer: C64Timer,
 
     border_color: u8,
     background_color: u8,
@@ -145,6 +211,7 @@ impl C64Memory{
             cia1_port_a_dir: 0,
             cia1_port_b_dir: 0,
             cia1_timer: C64Timer::new(),
+            cia2_timer: C64Timer::new(),
             border_color: 0,
             background_color:0,
             screen_control1: 0x1b,
@@ -154,6 +221,11 @@ impl C64Memory{
 
     pub fn set_keyboard_map(&mut self, keymap: C64KeyboadMap){
         self.keyboard_map = keymap;
+    }
+
+    pub fn tick(&mut self){
+        self.cia1_timer.tick();
+        self.cia2_timer.tick();
     }
 
     pub fn screen_code_to_char(screen_code: u8) -> char{
@@ -228,13 +300,56 @@ impl C64Memory{
             0xd016 => {self.screen_control2 = value},
             0xd020 => {self.border_color = value;},
             0xd021 => {self.background_color = value;},
+            0xdc04 => {
+                self.cia1_timer.set_timer_a_low(value);
+                println!("CIA1 Timer A low Write {}", value);
+            },
+            0xdc05 => {
+                self.cia1_timer.set_timer_a_high(value);
+                println!("CIA1 Timer A high Write {}", value);
+            },
+            0xdc06 => {
+                self.cia1_timer.set_timer_b_low(value);
+                println!("CIA1 Timer B low Write {}", value);
+            },
+            0xdc07 => {
+                self.cia1_timer.set_timer_b_high(value);
+                println!("CIA1 Timer B high Write {}", value);
+            },
+            0xdc08 => {
+                self.cia1_timer.set_tens(value);
+                println!("CIA1 Tens Write {}", value);
+            }
+            0xdc09 => {
+                self.cia1_timer.set_second(value);
+                println!("CIA1 Sec Write {}", value);
+            }
+            0xdc0a => {
+                self.cia1_timer.set_minute(value);
+                println!("CIA1 Min Write {}", value);
+            }
+            0xdc0b => {
+                self.cia1_timer.set_hour(value);
+                println!("CIA1 Hour Write {}", value);
+            }
+            0xdc0d => {
+                self.cia1_timer.set_timer_int(value);
+                println!("CIA1 INT Write {:#04x}", value);
+            }
+            0xdc0e => {
+                self.cia1_timer.set_timer_a_ctrl(value);
+                println!("CIA1 Timer A Ctrl Write {:#04x}", value);
+            }
+            0xdc0f => {
+                self.cia1_timer.set_timer_b_ctrl(value);
+                println!("CIA1 Timer B Ctrl Write {:#04x}", value);
+            }
             0xdc00 ..= 0xdc0f => {
                 println!("CIA1 Write {:#06x} => {:#04x}", address, value);
             }
             0xdd00 ..= 0xdd0f => {
                 println!("CIA2 Write {:#06x} => {:#04x}", address, value);
             }
-
             /*0xdc00 => {
                 //println!("IO Keyboard Write {:#06x} => {:#04x}", address, value);
                 self.cia1_port_a = value;
@@ -282,22 +397,22 @@ impl C64Memory{
             0xdc0d => {0x81}, //int ctrl 1 - Timer A underflow*/
             0xdc08 => {
                 let t = self.cia1_timer.get_tens();
-                println!("CIA1 Tens S {}", t);
+                println!("CIA1 Tens Read {}", t);
                 t
             }
             0xdc09 => {
                 let s = self.cia1_timer.get_second();
-                println!("CIA1 Sec {}", s);
+                println!("CIA1 Sec Read {}", s);
                 s
             }
             0xdc0a => {
                 let m = self.cia1_timer.get_minute();
-                println!("CIA1 Min {}", m);
+                println!("CIA1 Min Read {}", m);
                 m
             }
             0xdc0b => {
                 let h = self.cia1_timer.get_hour();
-                println!("CIA1 Hour {}", h);
+                println!("CIA1 Hour Read {}", h);
                 h
             }
             0xdc00 ..= 0xdc0f => {

@@ -22,14 +22,16 @@ impl C64{
         self.cpu.reset(&mut self.memory);
     }
 
-    pub fn run(&mut self) -> Result<(), CpuError>{
+    /*pub fn run(&mut self) -> Result<(), CpuError>{
         loop{
             self.cpu.run_single(&mut self.memory)?;
         }
-    }
+    }*/
 
     pub fn run_single(&mut self) -> Result<u16, CpuError>{
-        self.cpu.run_single(&mut self.memory)
+        let r = self.cpu.run_single(&mut self.memory)?;
+        self.memory.tick();
+        Ok(r)
     }
 
     pub fn enable_trace(&mut self, trace_size_limit: usize){
