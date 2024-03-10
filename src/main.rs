@@ -7,7 +7,7 @@ use macroquad::prelude::*;
 
 mod c64;
 use c64::C64;
-use c64::c64memory::{C64CharaterRam, C64Memory, C64KeyboadMap};
+use c64::c64memory::{C64CharaterRam, C64KeyboadMap};
 
 fn window_conf() -> Conf {
     Conf {
@@ -20,7 +20,7 @@ fn window_conf() -> Conf {
 
 enum ScreenUpdate{
     Chars(C64CharaterRam),
-    Chars_ram([u8; 4096]),
+    CharsRam([u8; 4096]),
 }
 
 #[macroquad::main(window_conf)]
@@ -33,7 +33,7 @@ async fn main() {
         r.store(false, Ordering::SeqCst);
     }).expect("Error setting Ctrl-C handler");
 
-    let mut enable_dbug_at: Option<u16> = None;
+    let enable_dbug_at: Option<u16> = None;
 
     //enable_dbug_at = Some(0xff48);
 
@@ -45,11 +45,10 @@ async fn main() {
     let mut image = Image::gen_image_color(384, 272, color);
     let texture: Texture2D = Texture2D::from_image(&image);
 
-    let c64_font = load_ttf_font("fonts/C64_Pro_Mono-STYLE.ttf").await.expect("c64 font");
-
-    let mut cnt = 0;
+    //let c64_font = load_ttf_font("fonts/C64_Pro_Mono-STYLE.ttf").await.expect("c64 font");
 
     let thread_handle = thread::Builder::new().name("C64".to_owned()).spawn(move || {
+        let mut cnt = 0;
         let mut c64 = C64::new();
 
         c64.enable_trace(64);
@@ -57,10 +56,8 @@ async fn main() {
 
         let mut debug_mode = false;
 
-        let mut cnt = 0;
-
-        let mut character_set = c64.get_character_rom(true);
-        fromc64_tx.send(ScreenUpdate::Chars_ram(character_set.unwrap())).expect("send");
+        let character_set = c64.get_character_rom(true);
+        fromc64_tx.send(ScreenUpdate::CharsRam(character_set.unwrap())).expect("send");
 
         let mut now = Instant::now();
         while running.load(Ordering::SeqCst){
@@ -68,15 +65,14 @@ async fn main() {
 
             cnt += 1;
 
-            let pc = match r{
+            match r{
                 Ok(pc) => {
                     if let Some(debug_at) = enable_dbug_at{
                         if debug_at == pc{
                             debug_mode = true;
-                            println!("Entering debug mode F5 to step");
+                            println!("Entering debug mode at PC={:#06x} F5 to step", pc);
                         }
                     }
-                    pc
                 },
                 Err(e) => {
                     eprintln!("C64 Cpu error: {}", e);
@@ -94,12 +90,10 @@ async fn main() {
                             for i in c{
                                 if i == KeyCode::F5{
                                     need_break = true;
-                                    //break;
                                 }
                                 else if i == KeyCode::F7{
                                     debug_mode = false;
                                     need_break = true;
-                                    //break;
                                 }
                             }
                             if need_break{
@@ -149,24 +143,18 @@ async fn main() {
                 },
             }
 
-            if !debug_mode {
-                match now.elapsed(){
-                    v if v >= Duration::from_micros(16666) => {
-                    //v if v >= Duration::from_millis(100) => {
-                        let charram = c64.get_character_ram();
-                        let t1 = Instant::now();
-                        //c64.interrupt();
-                        fromc64_tx.send(ScreenUpdate::Chars(charram)).unwrap(); //TODO fix unwrap
-                        now = Instant::now();
-                        //println!("Intterrupt! PC={:#04x} {:?} now {:?} time {:?} cnt {}", pc, v, now, t1.elapsed(), cnt);
-                    }
-                    _ => {}
+            match now.elapsed(){
+                v if v >= Duration::from_millis(200) => {
+                    let charram = c64.get_character_ram();
+                    fromc64_tx.send(ScreenUpdate::Chars(charram)).expect("Send");
+                    now = Instant::now();
                 }
+                _ => {}
             }
 
-             if cnt % 100 == 0{
-                thread::sleep(Duration::from_micros(100));
-             }
+            if cnt % 150 == 0{
+                thread::sleep(Duration::from_micros(10));
+            }
         }
         println!("Exiting...");
         c64.show_debug();
@@ -191,7 +179,7 @@ async fn main() {
                         charram = c;
                         need_redraw = true;
                     },
-                    ScreenUpdate::Chars_ram(r) => {
+                    ScreenUpdate::CharsRam(r) => {
                         charrom = Some(r);
                         need_redraw = true;
                     },
@@ -208,8 +196,6 @@ async fn main() {
         let image_x_off = (image_w - 320) / 2;
         let image_y_off = (image.height() - 200) / 2;
         let image_data = image.get_image_data_mut();
-
-        cnt += 1;
 
         let bg_color = color_u8!(0x50,0x45,0x9b,255);
         let fg_color = color_u8!(0x88,0x7e,0xcb,255);
