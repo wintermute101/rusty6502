@@ -128,7 +128,7 @@ impl CPUState {
 
     fn instruction_name(&self) -> String{
         match self.ins{
-            0x00 => "BRK",
+            0x00 => "BRK/INT",
             0x01 => "ORA IndirectX",
             0x05 => "ORA ZeroPage",
             0x06 => "ASL ZeroPage",
@@ -507,7 +507,6 @@ impl CPU6502{
         match ins {
             0x00 => { //BRK
                 self.PC += 1;
-                self.add_trace(cpu_state);
                 self.interrupt(InterruptType::BRK, memory);
             }
 
@@ -2237,6 +2236,7 @@ impl CPU6502{
     }
 
     pub fn interrupt<MemT: Memory6502>(&mut self, int: InterruptType, memory: &mut MemT){
+        let mut state = CPUState::new(&self, 0x00);
         if self.P.get_I() && int == InterruptType::INT{
             return;
         }
@@ -2265,6 +2265,12 @@ impl CPU6502{
 
         self.PC = address;
         self.P.set_I(true); //Disable Interupts
+
+        state.adr = address;
+        state.SP = self.SP;
+        state.P = self.P;
+
+        self.add_trace(state);
     }
 }
 
