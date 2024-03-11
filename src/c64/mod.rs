@@ -30,7 +30,10 @@ impl C64{
 
     pub fn run_single(&mut self) -> Result<u16, CpuError>{
         let r = self.cpu.run_single(&mut self.memory)?;
-        self.memory.tick();
+        let int = self.memory.tick();
+        if int{
+            self.interrupt();
+        }
         Ok(r)
     }
 

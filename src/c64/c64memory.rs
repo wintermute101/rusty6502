@@ -28,56 +28,76 @@ struct C64Timer{
     second: Option<u8>,
     tens_second: Option<u8>,
     start: Instant,
-    stop: Option<Instant>,
+    timer_a_last: u128,
 
     timer_a_set: u16,
-    timer_a_value: u16,
     timer_b_set: u16,
     timer_b_value: u16,
-    int_vec: u8,
+    int_vec_set: u8,
+    int_vec_read: u8,
     timer_a_ctrl: u8,
     timer_b_ctrl: u8,
 }
 
 impl C64Timer{
     fn new() -> Self{
+        let now = Instant::now();
+        let last = now.elapsed().as_nanos();
         C64Timer {
             minute: None,
             second: None,
             tens_second: None,
-            start: Instant::now(),
-            stop: None,
+            start: now,
+            timer_a_last: last,
             timer_a_set: 0,
-            timer_a_value: 0,
             timer_b_set: 0,
             timer_b_value: 0,
-            int_vec: 0,
+            int_vec_set: 0,
+            int_vec_read: 0,
             timer_a_ctrl: 0,
             timer_b_ctrl: 0,
         }
     }
 
-    fn tick(&mut self){
-        /*let t = self.start.elapsed().as_micros();
-        if self.timer_a_ctrl & 0x01 != 0{
-
-        }*/
+    fn tick(&mut self) -> bool{
+        let mut ret = false;     let t = self.start.elapsed().as_nanos();
+        if self.timer_a_ctrl & 0x01 != 0{ //timer A enabled
+            let ticks = (t - self.timer_a_last)/1000; //1MHz need more precise?
+            if ticks >= self.timer_a_set as u128{
+                //println!("int T A ctrl {:#04x} INC ctrl {:#04x} set {}", self.timer_a_ctrl, self.int_vec_set, self.timer_a_set);
+                if self.timer_a_ctrl & 0x80 != 0{
+                    self.timer_a_ctrl &= 0xf7; // stop timer
+                }
+                self.timer_a_last = t;
+                self.int_vec_read |= 0x81; //INT and Timer A underflow
+                ret = true;
+            }
+        }
+        ret
     }
 
     fn set_hour(&mut self, hour: u8){
-
+        if self.timer_b_ctrl & 0x80 != 0{
+            todo!("TOD alarm");
+        }
     }
 
     fn set_minute(&mut self, minute: u8){
-
+        if self.timer_b_ctrl & 0x80 != 0{
+            todo!("TOD alarm");
+        }
     }
 
     fn set_second(&mut self, second: u8){
-
+        if self.timer_b_ctrl & 0x80 != 0{
+            todo!("TOD alarm");
+        }
     }
 
     fn set_tens(&mut self, tens: u8){
-
+        if self.timer_b_ctrl & 0x80 != 0{
+            todo!("TOD alarm");
+        }
     }
 
     fn set_timer_a_low(&mut self, low: u8){
@@ -97,14 +117,17 @@ impl C64Timer{
     }
 
     fn set_timer_int(&mut self, int: u8){
-        self.int_vec = int;
+        let set_int = int & 0x7f;
+        if int & 0x80 != 0{
+            self.int_vec_set |= set_int;
+        }
+        else{
+            self.int_vec_set &= set_int;
+        }
     }
 
     fn set_timer_a_ctrl(&mut self, ctrl: u8){
         self.timer_a_ctrl = ctrl;
-        if ctrl & 0x01 != 0{
-            self.timer_a_value = self.timer_b_set;
-        }
     }
 
     fn set_timer_b_ctrl(&mut self, ctrl: u8){
@@ -150,6 +173,12 @@ impl C64Timer{
         else{
             todo!("tens?");
         }
+    }
+
+    fn get_timer_int(&mut self) -> u8{
+        let r = self.int_vec_read;
+        self.int_vec_read = 0;
+        r
     }
 }
 
@@ -198,7 +227,7 @@ impl C64Memory{
         //let external_rom = Some(C64Memory::load_rom("roms/c64_diag_rev4.1.1.bin").expect("no rom"));
         //let external_rom = None;
 
-        C64Memory { ram: [0; 64*1024],
+        let r = C64Memory { ram: [0; 64*1024],
             kernal: kernal,
             basic_rom: basic,
             character_rom: charater_rom,
@@ -216,16 +245,18 @@ impl C64Memory{
             background_color:0,
             screen_control1: 0x1b,
             screen_control2: 0xc8
-        }
+        };
+        r
     }
 
     pub fn set_keyboard_map(&mut self, keymap: C64KeyboadMap){
         self.keyboard_map = keymap;
     }
 
-    pub fn tick(&mut self){
-        self.cia1_timer.tick();
-        self.cia2_timer.tick();
+    pub fn tick(&mut self) -> bool{
+        let r1 = self.cia1_timer.tick();
+        let r2 = self.cia2_timer.tick();
+        r1 | r2
     }
 
     pub fn screen_code_to_char(screen_code: u8) -> char{
@@ -393,8 +424,7 @@ impl C64Memory{
                 else {
                     0xff
                 }
-            }
-            0xdc0d => {0x81}, //int ctrl 1 - Timer A underflow*/
+            }*/
             0xdc08 => {
                 let t = self.cia1_timer.get_tens();
                 println!("CIA1 Tens Read {}", t);
@@ -414,6 +444,14 @@ impl C64Memory{
                 let h = self.cia1_timer.get_hour();
                 println!("CIA1 Hour Read {}", h);
                 h
+            }
+            0xdc0c => {
+                todo!("0xdc0c read");
+            }
+            0xdc0d => {
+                let r = self.cia1_timer.get_timer_int();
+                println!("CIA1 INT Read {:#04x}", r);
+                r
             }
             0xdc00 ..= 0xdc0f => {
                 println!("CIA1 Read {:#06x}", address);
