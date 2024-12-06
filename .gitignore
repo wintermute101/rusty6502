@@ -1,4 +1,5 @@
 Cargo.lock
 /target
+/roms
 perf.data*
 flamegraph.svg
