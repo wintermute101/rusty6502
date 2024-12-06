@@ -1,6 +1,6 @@
 mod cpu6502;
 pub mod c64memory;
-use cpu6502::{CPU6502,CpuError,InterruptType};
+use cpu6502::{CPU6502,CpuError,InterruptType,memory::Memory6502};
 use c64memory::{C64Memory,C64CharaterRam};
 
 use self::{c64memory::C64KeyboadMap, cpu6502::CPUState};
@@ -32,7 +32,7 @@ impl C64{
         let r = self.cpu.run_single(&mut self.memory)?;
         let int = self.memory.tick();
         if int{
-            self.interrupt();
+            //self.interrupt();
         }
         Ok(r)
     }
@@ -51,6 +51,7 @@ impl C64{
     }
 
     pub fn interrupt(&mut self){
+        println!("INT");
         self.cpu.interrupt(InterruptType::INT, &mut self.memory);
     }
 
@@ -69,6 +70,19 @@ impl C64{
 
     pub fn get_last_state(&self) -> CPUState{
         self.cpu.get_last_state()
+    }
+
+    pub fn add_key_stroke(&mut self, keycode: u8){
+        let buf_pos = self.memory.read_memory(0x00C6);
+        println!("Bufpos {}", buf_pos);
+        if buf_pos >= 10{
+            eprintln!("Keyboard buffer full!");
+            return;
+        }
+        self.memory.write_memory(0x0277 + buf_pos as u16, keycode);
+        self.memory.write_memory(0x00C6,buf_pos + 1);
+        let buf_pos = self.memory.read_memory(0x00C6);
+        println!("Bufpos2 {}", buf_pos);
     }
 
     pub fn get_character_rom(&self, always: bool) -> Option<[u8; 4096]>{

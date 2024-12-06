@@ -209,7 +209,6 @@ pub struct C64Memory{
 }
 
 impl C64Memory{
-
     fn load_rom(path: &str) -> std::io::Result<Vec<u8>>{
         let mut file = File::open(path)?;
         let file_size = file.metadata()?.len();
@@ -223,9 +222,9 @@ impl C64Memory{
         let charater_rom = C64Memory::load_rom("roms/characters.901225-01.bin").expect("no char rom");
         let basic = C64Memory::load_rom("roms/basic.901226-01.bin").expect("no basic");
         //let external_rom = Some(C64Memory::load_rom("roms/c64_burn-in_7.2_5.6.89.bin").expect("no rom"));
-        let external_rom = Some(C64Memory::load_rom("roms/c64_final_burnin_3.0_5.6.89.bin").expect("no rom"));
+        //let external_rom = Some(C64Memory::load_rom("roms/c64_final_burnin_3.0_5.6.89.bin").expect("no rom"));
         //let external_rom = Some(C64Memory::load_rom("roms/c64_diag_rev4.1.1.bin").expect("no rom"));
-        //let external_rom = None;
+        let external_rom = None;
 
         let r = C64Memory { ram: [0; 64*1024],
             kernal: kernal,
@@ -316,7 +315,7 @@ impl C64Memory{
         }
     }
 
-    fn write_io(&mut self, address: u16, value: u8){
+    pub fn write_io(&mut self, address: u16, value: u8){
         match address {
             0xd800 ..= 0xdbff => {
                 //println!("IO Color RAM Write {:#06x} => {:#04x}", address, value);
@@ -333,53 +332,53 @@ impl C64Memory{
             0xd021 => {self.background_color = value;},
             0xdc04 => {
                 self.cia1_timer.set_timer_a_low(value);
-                println!("CIA1 Timer A low Write {}", value);
+                //println!("CIA1 Timer A low Write {}", value);
             },
             0xdc05 => {
                 self.cia1_timer.set_timer_a_high(value);
-                println!("CIA1 Timer A high Write {}", value);
+                //println!("CIA1 Timer A high Write {}", value);
             },
             0xdc06 => {
                 self.cia1_timer.set_timer_b_low(value);
-                println!("CIA1 Timer B low Write {}", value);
+                //println!("CIA1 Timer B low Write {}", value);
             },
             0xdc07 => {
                 self.cia1_timer.set_timer_b_high(value);
-                println!("CIA1 Timer B high Write {}", value);
+                //println!("CIA1 Timer B high Write {}", value);
             },
             0xdc08 => {
                 self.cia1_timer.set_tens(value);
-                println!("CIA1 Tens Write {}", value);
+                //println!("CIA1 Tens Write {}", value);
             }
             0xdc09 => {
                 self.cia1_timer.set_second(value);
-                println!("CIA1 Sec Write {}", value);
+                //println!("CIA1 Sec Write {}", value);
             }
             0xdc0a => {
                 self.cia1_timer.set_minute(value);
-                println!("CIA1 Min Write {}", value);
+                //println!("CIA1 Min Write {}", value);
             }
             0xdc0b => {
                 self.cia1_timer.set_hour(value);
-                println!("CIA1 Hour Write {}", value);
+                //println!("CIA1 Hour Write {}", value);
             }
             0xdc0d => {
                 self.cia1_timer.set_timer_int(value);
-                println!("CIA1 INT Write {:#04x}", value);
+                //println!("CIA1 INT Write {:#04x}", value);
             }
             0xdc0e => {
                 self.cia1_timer.set_timer_a_ctrl(value);
-                println!("CIA1 Timer A Ctrl Write {:#04x}", value);
+                //println!("CIA1 Timer A Ctrl Write {:#04x}", value);
             }
             0xdc0f => {
                 self.cia1_timer.set_timer_b_ctrl(value);
-                println!("CIA1 Timer B Ctrl Write {:#04x}", value);
+                //println!("CIA1 Timer B Ctrl Write {:#04x}", value);
             }
             0xdc00 ..= 0xdc0f => {
-                println!("CIA1 Write {:#06x} => {:#04x}", address, value);
+                //println!("CIA1 Write {:#06x} => {:#04x}", address, value);
             }
             0xdd00 ..= 0xdd0f => {
-                println!("CIA2 Write {:#06x} => {:#04x}", address, value);
+                //println!("CIA2 Write {:#06x} => {:#04x}", address, value);
             }
             /*0xdc00 => {
                 //println!("IO Keyboard Write {:#06x} => {:#04x}", address, value);
@@ -394,7 +393,7 @@ impl C64Memory{
                 self.cia1_port_b_dir = value;
             },*/
             0xd000 ..= 0xdfff => { //IO
-                println!("IO Write {:#06x} => {:#04x}", address, value);
+                //println!("IO Write {:#06x} => {:#04x}", address, value);
             },
             _ => {
                 panic!("Address {:#06x} is not IO", address);
@@ -403,7 +402,7 @@ impl C64Memory{
 
     }
 
-    fn read_io(&mut self, address: u16) -> u8
+    pub fn read_io(&mut self, address: u16) -> u8
     {
         match address {
             0xd011 => {self.screen_control1},
@@ -450,15 +449,15 @@ impl C64Memory{
             }
             0xdc0d => {
                 let r = self.cia1_timer.get_timer_int();
-                println!("CIA1 INT Read {:#04x}", r);
+                //println!("CIA1 INT Read {:#04x}", r);
                 r
             }
             0xdc00 ..= 0xdc0f => {
-                println!("CIA1 Read {:#06x}", address);
+                //println!("CIA1 Read {:#06x}", address);
                 0x00
             }
             0xdd00 ..= 0xdd0f => {
-                println!("CIA2 Read {:#06x}", address);
+                //println!("CIA2 Read {:#06x}", address);
                 0x00
             }
             0xd000 ..= 0xdfff => { //IO
@@ -476,12 +475,12 @@ impl Memory6502 for C64Memory{
     fn write_memory(&mut self, address: u16, value: u8) {
         match address {
             0x0000 => {
-                println!("6510 DDR {:#06x} => {:#04x}", address, value);
+                //println!("6510 DDR {:#06x} => {:#04x}", address, value);
                 self.processor_port_ddr = value;
             },
             0x0001 => {
                 self.processor_port = value & self.processor_port_ddr & 0xf7 | 0x30; // 0xf7 datasette output 0, 0x30 motor off button not pressed
-                println!("6510 Port {:#06x} => {:#04x} {:#04x}", address, value, self.processor_port);
+                //println!("6510 Port {:#06x} => {:#04x} {:#04x}", address, value, self.processor_port);
             },
             0xd0d0 ..= 0xdfff /*if self.processor_port & 0xfc != 0*/ =>{
                 self.write_io(address, value);
@@ -495,11 +494,11 @@ impl Memory6502 for C64Memory{
     fn read_memory(&mut self, address: u16) -> u8 {
         match address{
             0x0000 => {
-                println!("6510 DDR {:#06x}", address);
+                //println!("6510 DDR {:#06x}", address);
                 self.processor_port_ddr
             },
             0x0001 => {
-                println!("6510 Port {:#06x}", address);
+                //println!("6510 Port {:#06x}", address);
                 self.processor_port
             },
             0x8000 ..= 0x9fff => {
