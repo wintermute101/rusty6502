@@ -1,6 +1,8 @@
-6502 Processor emulator
+## 6502 Processor emulator
 
-Basic C64 Emulator, 
-Runs basic or external roms but need more work on hadware side
+Basic C64 Emulator,</br>
+Runs basic or external roms but need more work on hadware side</br>
+</br>
+Code is in "development" mode  and a lot of C64 need to be done to be usable.</br>
 
-Code is in "development" mode  and a lot of C64 need to be done to be usable.
+![Running Commodore Basic](./c64.png)
