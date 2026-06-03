@@ -30,9 +30,10 @@ struct C64Timer{
     start: Instant,
     timer_a_last: u128,
 
-    timer_a_set: u16,
-    timer_b_set: u16,
-    timer_b_value: u16,
+    timer_a_latch: u16,
+    timer_b_latch: u16,
+    timer_a_counter: u16,
+    timer_b_counter: u16,
     int_vec_set: u8,
     int_vec_read: u8,
     timer_a_ctrl: u8,
@@ -49,9 +50,10 @@ impl C64Timer{
             tens_second: None,
             start: now,
             timer_a_last: last,
-            timer_a_set: 0,
-            timer_b_set: 0,
-            timer_b_value: 0,
+            timer_a_latch: 0xffff,
+            timer_b_latch: 0xffff,
+            timer_a_counter: 0xffff,
+            timer_b_counter: 0xffff,
             int_vec_set: 0,
             int_vec_read: 0,
             timer_a_ctrl: 0,
@@ -63,14 +65,18 @@ impl C64Timer{
         let mut ret = false;     let t = self.start.elapsed().as_nanos();
         if self.timer_a_ctrl & 0x01 != 0{ //timer A enabled
             let ticks = (t - self.timer_a_last)/1000; //1MHz need more precise?
-            if ticks >= self.timer_a_set as u128{
-                //println!("int T A ctrl {:#04x} INC ctrl {:#04x} set {}", self.timer_a_ctrl, self.int_vec_set, self.timer_a_set);
-                if self.timer_a_ctrl & 0x80 != 0{
-                    self.timer_a_ctrl &= 0xf7; // stop timer
+            if ticks > 0 {
+                let (new_val, underflow) = self.timer_a_counter.overflowing_sub(ticks as u16);
+                self.timer_a_counter = new_val;
+                if underflow {
+                    if self.timer_a_ctrl & 0x08 != 0 { // One-shot mode
+                        self.timer_a_ctrl &= 0xfe;
+                    }
+                    self.timer_a_counter = self.timer_a_latch;
+                    self.int_vec_read |= 0x81;
+                    ret = true;
                 }
                 self.timer_a_last = t;
-                self.int_vec_read |= 0x81; //INT and Timer A underflow
-                ret = true;
             }
         }
         ret
@@ -101,19 +107,22 @@ impl C64Timer{
     }
 
     fn set_timer_a_low(&mut self, low: u8){
-        self.timer_a_set = self.timer_a_set & 0xff00 | low as u16;
+        self.timer_a_latch = (self.timer_a_latch & 0xff00) | low as u16;
     }
 
     fn set_timer_a_high(&mut self, high: u8){
-        self.timer_a_set = self.timer_a_set & 0x00ff | (high as u16) << 8;
+        self.timer_a_latch = (self.timer_a_latch & 0x00ff) | (high as u16) << 8;
+        // Writing high byte reloads the counter if timer is stopped
+        if (self.timer_a_ctrl & 0x01) == 0 { self.timer_a_counter = self.timer_a_latch; }
     }
 
     fn set_timer_b_low(&mut self, low: u8){
-        self.timer_b_set = self.timer_b_set & 0xff00 | low as u16;
+        self.timer_b_latch = (self.timer_b_latch & 0xff00) | low as u16;
     }
 
     fn set_timer_b_high(&mut self, high: u8){
-        self.timer_b_set = self.timer_b_set & 0x00ff | (high as u16) << 8;
+        self.timer_b_latch = (self.timer_b_latch & 0x00ff) | (high as u16) << 8;
+        if (self.timer_b_ctrl & 0x01) == 0 { self.timer_b_counter = self.timer_b_latch; }
     }
 
     fn set_timer_int(&mut self, int: u8){
@@ -322,14 +331,16 @@ impl C64Memory{
                 let adr = address - 0xd800;
                 self.color_ram[adr as usize] = value;
             }
-            0xd000 ..= 0xd010 => {}, //sprite
-            0xd011 => {self.screen_control1 = value;},
-            0xd015 => {
-                if value != 0{todo!("sprite");};
-            },
-            0xd016 => {self.screen_control2 = value},
-            0xd020 => {self.border_color = value;},
-            0xd021 => {self.background_color = value;},
+            0xd000 ..= 0xd02e => {
+                match address {
+                    0xd011 => self.screen_control1 = value,
+                    0xd016 => self.screen_control2 = value,
+                    0xd020 => self.border_color = value,
+                    0xd021 => self.background_color = value,
+                    _ => {}
+                }
+            }
+            0xdc00 => self.cia1_port_a = value,
             0xdc04 => {
                 self.cia1_timer.set_timer_a_low(value);
                 //println!("CIA1 Timer A low Write {}", value);
@@ -405,25 +416,17 @@ impl C64Memory{
     pub fn read_io(&mut self, address: u16) -> u8
     {
         match address {
-            0xd011 => {self.screen_control1},
-            0xd016 => {self.screen_control2},
-            0xd020 => {self.border_color},
-            0xd021 => {self.background_color},
-            /*0xdc01 => {
-                if self.cia1_port_a != 0{
-                    let mut ret = 0xff;
-                    for (n, &col) in self.keyboard_map.col.iter().enumerate(){
-                        if self.cia1_port_a & (1 << n as u8) == 0{
-                            ret &= col;
-                        }
-                    }
-                    println!("IO Keyboard {:#06x} <= {:#04x} {:#04x} {:?}", address, ret, self.cia1_port_a, self.keyboard_map.col);
-                    ret
-                }
-                else {
-                    0xff
-                }
-            }*/
+            0xd011 => self.screen_control1,
+            0xd012 => 0x00, // Raster line
+            0xd016 => self.screen_control2,
+            0xd020 => self.border_color,
+            0xd021 => self.background_color,
+            0xdc00 => self.cia1_port_a,
+            0xdc01 => 0xff, // Port B (Keyboard Scan). 0xff = no keys pressed.
+            0xdc04 => (self.cia1_timer.timer_a_counter & 0xff) as u8,
+            0xdc05 => (self.cia1_timer.timer_a_counter >> 8) as u8,
+            0xdc06 => (self.cia1_timer.timer_b_counter & 0xff) as u8,
+            0xdc07 => (self.cia1_timer.timer_b_counter >> 8) as u8,
             0xdc08 => {
                 let t = self.cia1_timer.get_tens();
                 println!("CIA1 Tens Read {}", t);
@@ -479,10 +482,10 @@ impl Memory6502 for C64Memory{
                 self.processor_port_ddr = value;
             },
             0x0001 => {
-                self.processor_port = value & self.processor_port_ddr & 0xf7 | 0x30; // 0xf7 datasette output 0, 0x30 motor off button not pressed
+                self.processor_port = value;
                 //println!("6510 Port {:#06x} => {:#04x} {:#04x}", address, value, self.processor_port);
             },
-            0xd0d0 ..= 0xdfff /*if self.processor_port & 0xfc != 0*/ =>{
+            0xd000 ..= 0xdfff /*if self.processor_port & 0xfc != 0*/ =>{
                 self.write_io(address, value);
             }
             _ => {
@@ -501,29 +504,31 @@ impl Memory6502 for C64Memory{
                 //println!("6510 Port {:#06x}", address);
                 self.processor_port
             },
-            0x8000 ..= 0x9fff => {
-                let adr = address - 0x8000;
-                if let Some(ext_rom) = self.external_rom.as_ref(){
-                    ext_rom[adr as usize]
-                }
-                else{
+            0xa000 ..= 0xbfff => {
+                if (self.processor_port & 0x03) == 0x03 {
+                    self.basic_rom[(address - 0xa000) as usize]
+                } else {
                     self.ram[address as usize]
                 }
-            }
-            0xd000 ..= 0xdfff /*if self.processor_port & 0xfb != 0 && self.processor_port & 0xfc != 0*/ => {
-                self.read_io(address)
-            }
-            /*0xd000 ..= 0xdfff if self.processor_port & 0xfb == 0 && self.processor_port & 0xfc != 0 => {
-                todo!("character rom read")
-            }*/
-            0xe000 ..= 0xffff /*if self.processor_port & 0xfd != 0*/ => { //Kernal
-                let adr = address - 0xe000;
-                self.kernal[adr as usize]
-            }
-            0xa000 ..= 0xbfff /*if self.processor_port & 0xfc == 3*/ => { //Basic
-                let adr = address - 0xa000;
-                self.basic_rom[adr as usize]
-            }
+            },
+            0xd000 ..= 0xdfff => {
+                // Bit 2: CHAREN (0 = Char ROM, 1 = I/O)
+                // But if Bits 0-1 are 0, it's RAM regardless of CHAREN
+                if (self.processor_port & 0x03) == 0 {
+                    self.ram[address as usize]
+                } else if (self.processor_port & 0x04) != 0 {
+                    self.read_io(address)
+                } else {
+                    self.character_rom[(address - 0xd000) as usize]
+                }
+            },
+            0xe000 ..= 0xffff => {
+                if (self.processor_port & 0x02) != 0 {
+                    self.kernal[(address - 0xe000) as usize]
+                } else {
+                    self.ram[address as usize]
+                }
+            },
             _ => {
                 self.ram[address as usize]
             }
