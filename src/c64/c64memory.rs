@@ -532,6 +532,15 @@ impl Memory6502 for C64Memory{
                     self.ram[address as usize]
                 }
             },
+            0x8000 ..= 0x9fff => {
+                let adr = address - 0x8000;
+                if let Some(ext_rom) = self.external_rom.as_ref(){
+                    ext_rom[adr as usize]
+                }
+                else{
+                    self.ram[adr as usize]
+                }
+            },
             _ => {
                 self.ram[address as usize]
             }
