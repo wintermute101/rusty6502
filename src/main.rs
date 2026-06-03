@@ -4,6 +4,7 @@ use std::time::{Duration,Instant};
 use std::thread;
 use std::sync::mpsc::{channel, TryRecvError};
 use macroquad::prelude::*;
+use std::collections::HashSet;
 
 mod c64;
 use c64::C64;
@@ -23,6 +24,11 @@ enum ScreenUpdate{
     CharsRam([u8; 4096]),
 }
 
+struct KeysPressed{
+    key_codes : HashSet<KeyCode>,
+    keys : Vec<char>
+}
+
 #[macroquad::main(window_conf)]
 async fn main() {
     let running = Arc::new(AtomicBool::new(true));
@@ -38,7 +44,7 @@ async fn main() {
     //enable_dbug_at = Some(0xff48);
 
     let (fromc64_tx,fromc64_rx) = channel();
-    let (to64_tx,to64_rx) = channel();
+    let (to64_tx,to64_rx) = channel::<KeysPressed>();
 
     //let color = color_u8!(0x50,0x45,0x9b,255);
     let color = color_u8!(0x88,0x7e,0xcb,255);
@@ -87,7 +93,7 @@ async fn main() {
                     match to64_rx.recv(){
                         Ok(c) => {
                             let mut need_break = false;
-                            for i in c{
+                            for i in c.key_codes{
                                 if i == KeyCode::F5{
                                     need_break = true;
                                 }
@@ -140,62 +146,27 @@ async fn main() {
                     }
                     //keymap.col[1] &= !(1 << 2);
                     c64.set_keyboard_map(keymap);*/
-                    for i in c{
+                    for i in c.key_codes{
                         println!("Keystroke {:?}", i);
                         match i{
-
                             KeyCode::Enter => c64.add_key_stroke(0x0d),
-
-                            KeyCode::Space => c64.add_key_stroke(0x20),
-                            KeyCode::LeftBracket => c64.add_key_stroke(0x21),
-                            KeyCode::RightBracket => c64.add_key_stroke(0x22),
-
-                            KeyCode::Key0 => c64.add_key_stroke(0x30),
-                            KeyCode::Key1 => c64.add_key_stroke(0x31),
-                            KeyCode::Key2 => c64.add_key_stroke(0x32),
-                            KeyCode::Key3 => c64.add_key_stroke(0x33),
-                            KeyCode::Key4 => c64.add_key_stroke(0x34),
-                            KeyCode::Key5 => c64.add_key_stroke(0x35),
-                            KeyCode::Key6 => c64.add_key_stroke(0x36),
-                            KeyCode::Key7 => c64.add_key_stroke(0x37),
-                            KeyCode::Key8 => c64.add_key_stroke(0x38),
-                            KeyCode::Key9 => c64.add_key_stroke(0x39),
-
-                            KeyCode::Semicolon => c64.add_key_stroke(0x3b),
-
-                            KeyCode::A => c64.add_key_stroke(0x41),
-                            KeyCode::B => c64.add_key_stroke(0x42),
-                            KeyCode::C => c64.add_key_stroke(0x43),
-                            KeyCode::D => c64.add_key_stroke(0x44),
-                            KeyCode::E => c64.add_key_stroke(0x45),
-                            KeyCode::F => c64.add_key_stroke(0x46),
-                            KeyCode::G => c64.add_key_stroke(0x47),
-                            KeyCode::H => c64.add_key_stroke(0x48),
-                            KeyCode::I => c64.add_key_stroke(0x49),
-                            KeyCode::J => c64.add_key_stroke(0x4a),
-                            KeyCode::K => c64.add_key_stroke(0x4b),
-                            KeyCode::L => c64.add_key_stroke(0x4c),
-                            KeyCode::M => c64.add_key_stroke(0x4d),
-                            KeyCode::N => c64.add_key_stroke(0x4e),
-                            KeyCode::O => c64.add_key_stroke(0x4f),
-                            KeyCode::P => c64.add_key_stroke(0x50),
-                            KeyCode::Q => c64.add_key_stroke(0x51),
-                            KeyCode::R => c64.add_key_stroke(0x52),
-                            KeyCode::S => c64.add_key_stroke(0x53),
-                            KeyCode::T => c64.add_key_stroke(0x54),
-                            KeyCode::U => c64.add_key_stroke(0x55),
-                            KeyCode::V => c64.add_key_stroke(0x56),
-                            KeyCode::W => c64.add_key_stroke(0x57),
-                            KeyCode::X => c64.add_key_stroke(0x58),
-                            KeyCode::Y => c64.add_key_stroke(0x59),
-                            KeyCode::Z => c64.add_key_stroke(0x5a),
                             KeyCode::Backspace => c64.add_key_stroke(0x14),
-
                             KeyCode::F1 => {c64.interrupt();}
                             KeyCode::F6 => {debug_mode = true;},
                             KeyCode::Escape => {c64.reset();}
-                            _ => {println!("Not supported key {:?}", i)},
+                            _ => {},
                         }
+                    }
+
+                    for ch in c.keys{
+                        println!("Char stroke {}", ch);
+                        let mut code = ch as u8;
+                        if code >= b'a' && code <= b'z' {
+                            code -= 32; // Map 'a'..'z' to PETSCII unshifted 'A'..'Z'
+                        } else if code >= b'A' && code <= b'Z' {
+                            code += 128; // Map 'A'..'Z' to PETSCII shifted 'A'..'Z'
+                        }
+                        c64.add_key_stroke(code);
                     }
                 },
             }
@@ -305,9 +276,21 @@ async fn main() {
         }*/
 
         let keys = get_keys_pressed();
-        if !keys.is_empty(){
-            to64_tx.send(keys).unwrap();//TODO fix unwrap
+        let mut kchar = Vec::new();
+        while let Some(char) = get_char_pressed(){
+            //to64_tx.send(char).unwrap();//TODO fix unwrap
+            kchar.push(char);
+            println!("CHAR: {}", char);
         }
+
+        if !keys.is_empty() || kchar.len() > 0{
+            let key_pressed = KeysPressed{key_codes: keys, keys: kchar};
+            if let Err(e) = to64_tx.send(key_pressed){
+                println!("Send error {e}");
+                break;
+            }
+        }
+
 
         next_frame().await;
     }
