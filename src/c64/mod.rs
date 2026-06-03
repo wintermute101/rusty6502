@@ -32,7 +32,7 @@ impl C64{
         let r = self.cpu.run_single(&mut self.memory)?;
         let int = self.memory.tick();
         if int{
-            //self.interrupt();
+            self.interrupt();
         }
         Ok(r)
     }
@@ -51,7 +51,7 @@ impl C64{
     }
 
     pub fn interrupt(&mut self){
-        println!("INT");
+        //println!("INT");
         self.cpu.interrupt(InterruptType::INT, &mut self.memory);
     }
 
