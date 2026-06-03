@@ -971,7 +971,7 @@ impl CPU6502{
                 let address = 0x0100 | self.SP as u16;
                 let data = memory.read_memory(address);
                 self.SP = self.SP.overflowing_add(1).0;
-                self.P.value = (data & 0b1101_1111) | 0b0001_0000; //ignore bit 5 set B
+                self.P.value = (data & 0b1100_1111) | 0b0010_0000; //Pull flags, ignore B, bit 5 is always 1
                 let sp = 0x0100 | self.SP as u16;
                 let addr = memory.read_memory_word(sp);
                 self.SP = self.SP.overflowing_add(1).0;
