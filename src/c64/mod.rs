@@ -19,6 +19,7 @@ impl C64{
     }
 
     pub fn reset(&mut self){
+        self.memory = C64Memory::new();
         self.cpu.reset(&mut self.memory);
     }
 
