@@ -483,10 +483,13 @@ impl Memory6502 for C64Memory{
             },
             0x0001 => {
                 self.processor_port = value;
-                //println!("6510 Port {:#06x} => {:#04x} {:#04x}", address, value, self.processor_port);
             },
-            0xd000 ..= 0xdfff /*if self.processor_port & 0xfc != 0*/ =>{
-                self.write_io(address, value);
+            0xd000 ..= 0xdfff => {
+                if (self.processor_port & 0x03) != 0 && (self.processor_port & 0x04) != 0 {
+                    self.write_io(address, value);
+                } else {
+                    self.ram[address as usize] = value;
+                }
             }
             _ => {
                 self.ram[address as usize] = value;
