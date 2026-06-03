@@ -422,7 +422,16 @@ impl C64Memory{
             0xd020 => self.border_color,
             0xd021 => self.background_color,
             0xdc00 => self.cia1_port_a,
-            0xdc01 => 0xff, // Port B (Keyboard Scan). 0xff = no keys pressed.
+            0xdc01 => {
+                // Keyboard Matrix Scan: Port B depends on which columns are selected in Port A
+                let mut row_bits = 0xff;
+                for i in 0..8 {
+                    if (self.cia1_port_a >> i) & 1 == 0 {
+                        row_bits &= self.keyboard_map.col[i];
+                    }
+                }
+                row_bits
+            },
             0xdc04 => (self.cia1_timer.timer_a_counter & 0xff) as u8,
             0xdc05 => (self.cia1_timer.timer_a_counter >> 8) as u8,
             0xdc06 => (self.cia1_timer.timer_b_counter & 0xff) as u8,

@@ -26,7 +26,6 @@ enum ScreenUpdate{
 
 struct KeysPressed{
     key_codes : HashSet<KeyCode>,
-    keys : Vec<char>
 }
 
 #[macroquad::main(window_conf)]
@@ -123,51 +122,107 @@ async fn main() {
                     break;
                 }
                 Ok(c) => {
-                    /*let mut keymap = C64KeyboadMap::new();
-                    for i in c{
-                        match i{
-                            KeyCode::A => {keymap.col[1] &= !(1 << 2);},
-                            KeyCode::D => {keymap.col[2] &= !(1 << 2);},
-                            KeyCode::G => {keymap.col[3] &= !(1 << 2);},
-                            KeyCode::J => {keymap.col[4] &= !(1 << 2);},
-                            KeyCode::L => {keymap.col[5] &= !(1 << 2);},
-                            KeyCode::Semicolon => {keymap.col[6] &= !(1 << 2);},
-
-                            KeyCode::W => {keymap.col[1] &= !(1 << 1);},
-                            KeyCode::R => {keymap.col[2] &= !(1 << 1);},
-                            KeyCode::Y => {keymap.col[3] &= !(1 << 1);},
-                            KeyCode::I => {keymap.col[4] &= !(1 << 1);},
-                            KeyCode::P => {keymap.col[5] &= !(1 << 1);},
-
-                            KeyCode::F6 => {debug_mode = true;},
-
-                            _ => {/*println!("Not supported key {:?}", i)*/},
-                        }
-                    }
-                    //keymap.col[1] &= !(1 << 2);
-                    c64.set_keyboard_map(keymap);*/
+                    let mut keymap = C64KeyboadMap::new();
+                    let is_shift = c.key_codes.contains(&KeyCode::LeftShift) || c.key_codes.contains(&KeyCode::RightShift);
                     for i in c.key_codes{
-                        println!("Keystroke {:?}", i);
+                        // Map PC KeyCodes to C64 Keyboard Matrix (Col/Row)
                         match i{
-                            KeyCode::Enter => c64.add_key_stroke(0x0d),
-                            KeyCode::Backspace => c64.add_key_stroke(0x14),
-                            KeyCode::F1 => {c64.interrupt();}
+                            // Row 0: DEL, RET, L/R, F7, F1, F3, F5, U/D
+                            KeyCode::Backspace => {keymap.col[0] &= !(1 << 0);},
+                            KeyCode::Enter     => {keymap.col[0] &= !(1 << 1);},
+                            KeyCode::F1        => {keymap.col[0] &= !(1 << 4);},
+                            KeyCode::F3        => {keymap.col[0] &= !(1 << 5);},
+                            KeyCode::F5        => {keymap.col[0] &= !(1 << 6);},
+                            KeyCode::F7        => {keymap.col[0] &= !(1 << 3);},
+
+                            // Row 1-4: Alphanumeric
+                            KeyCode::Key3 => {keymap.col[1] &= !(1 << 0);},
+                            KeyCode::W => {keymap.col[1] &= !(1 << 1);},
+                            KeyCode::A => {keymap.col[1] &= !(1 << 2);},
+                            KeyCode::Key4 => {keymap.col[1] &= !(1 << 3);},
+                            KeyCode::Z => {keymap.col[1] &= !(1 << 4);},
+                            KeyCode::S => {keymap.col[1] &= !(1 << 5);},
+                            KeyCode::E => {keymap.col[1] &= !(1 << 6);},
+                            KeyCode::LeftShift => {keymap.col[1] &= !(1 << 7);},
+                            KeyCode::RightShift => {keymap.col[6] &= !(1 << 4);},
+
+                            KeyCode::Key5 => {keymap.col[2] &= !(1 << 0);},
+                            KeyCode::R => {keymap.col[2] &= !(1 << 1);},
+                            KeyCode::D => {keymap.col[2] &= !(1 << 2);},
+                            KeyCode::Key6 => {keymap.col[2] &= !(1 << 3);},
+                            KeyCode::C => {keymap.col[2] &= !(1 << 4);},
+                            KeyCode::F => {keymap.col[2] &= !(1 << 5);},
+                            KeyCode::T => {keymap.col[2] &= !(1 << 6);},
+                            KeyCode::X => {keymap.col[2] &= !(1 << 7);},
+
+                            KeyCode::Key7 => {keymap.col[3] &= !(1 << 0);},
+                            KeyCode::Y => {keymap.col[3] &= !(1 << 1);},
+                            KeyCode::G => {keymap.col[3] &= !(1 << 2);},
+                            KeyCode::Key8 => {
+                                if is_shift { keymap.col[6] &= !(1 << 1); } // PC * (Shift+8) -> C64 *
+                                else { keymap.col[3] &= !(1 << 3); }        // PC 8 -> C64 8
+                            },
+                            KeyCode::B => {keymap.col[3] &= !(1 << 4);},
+                            KeyCode::H => {keymap.col[3] &= !(1 << 5);},
+                            KeyCode::U => {keymap.col[3] &= !(1 << 6);},
+                            KeyCode::V => {keymap.col[3] &= !(1 << 7);},
+
+                            KeyCode::Key9 => {
+                                if is_shift { keymap.col[3] &= !(1 << 3); } // PC ( (Shift+9) -> C64 8 (Shift+8 = ()
+                                else { keymap.col[4] &= !(1 << 0); }        // PC 9 -> C64 9
+                            },
+                            KeyCode::I => {keymap.col[4] &= !(1 << 1);},
+                            KeyCode::J => {keymap.col[4] &= !(1 << 2);},
+                            KeyCode::Key0 => {
+                                if is_shift { keymap.col[4] &= !(1 << 0); } // PC ) (Shift+0) -> C64 9 (Shift+9 = ))
+                                else { keymap.col[4] &= !(1 << 3); }        // PC 0 -> C64 0
+                            },
+                            KeyCode::M => {keymap.col[4] &= !(1 << 4);},
+                            KeyCode::K => {keymap.col[4] &= !(1 << 5);},
+                            KeyCode::O => {keymap.col[4] &= !(1 << 6);},
+                            KeyCode::N => {keymap.col[4] &= !(1 << 7);},
+
+                            KeyCode::P => {keymap.col[5] &= !(1 << 1);},
+                            KeyCode::L => {keymap.col[5] &= !(1 << 2);},
+                            KeyCode::Comma =>  {keymap.col[5] &= !(1 << 7);},
+                            KeyCode::Period => {keymap.col[5] &= !(1 << 4);},
+                            KeyCode::Minus => {
+                                if is_shift { keymap.col[7] &= !(1 << 1); } // PC _ (Shift+Minus) -> C64 _
+                                else { keymap.col[5] &= !(1 << 3); }        // PC - -> C64 -
+                            },
+                            KeyCode::Equal => {
+                                if is_shift { keymap.col[5] &= !(1 << 0); } // PC + (Shift+Equal) -> C64 +
+                                else { keymap.col[6] &= !(1 << 5); }        // PC = -> C64 =
+                            },
+                            KeyCode::Slash =>  {keymap.col[6] &= !(1 << 7);},
+                            KeyCode::Semicolon => {keymap.col[6] &= !(1 << 2);},
+                            KeyCode::Apostrophe => {
+                                if is_shift { keymap.col[7] &= !(1 << 3); } // PC " (Shift+') -> C64 2 (Shift+2 = ")
+                                else {
+                                    keymap.col[3] &= !(1 << 0); // C64 7
+                                    keymap.col[1] &= !(1 << 7); // Force Shift for C64 ' (Shift+7)
+                                }
+                            },
+
+                            KeyCode::Key1 => {keymap.col[7] &= !(1 << 0);},
+                            KeyCode::Key2 => {
+                                if is_shift { keymap.col[5] &= !(1 << 6); } // PC @ (Shift+2) -> C64 @
+                                else { keymap.col[7] &= !(1 << 3); }        // PC 2 -> C64 2
+                            },
+                            KeyCode::Q => {keymap.col[7] &= !(1 << 6);},
+                            KeyCode::Space => {keymap.col[7] &= !(1 << 4);},
+                            KeyCode::LeftControl => {keymap.col[7] &= !(1 << 2);},
+                            KeyCode::Escape => {keymap.col[7] &= !(1 << 7);}, // Map Stop
+
                             KeyCode::F6 => {debug_mode = true;},
-                            KeyCode::Escape => {c64.reset();}
+
+                            // Emulator System Shortcuts
+                            KeyCode::F11 => { c64.interrupt(); },
+                            KeyCode::F12 => { c64.reset(); },
                             _ => {},
                         }
                     }
-
-                    for ch in c.keys{
-                        println!("Char stroke {}", ch);
-                        let mut code = ch as u8;
-                        if code >= b'a' && code <= b'z' {
-                            code -= 32; // Map 'a'..'z' to PETSCII unshifted 'A'..'Z'
-                        } else if code >= b'A' && code <= b'Z' {
-                            code += 128; // Map 'A'..'Z' to PETSCII shifted 'A'..'Z'
-                        }
-                        c64.add_key_stroke(code);
-                    }
+                    c64.set_keyboard_map(keymap);
                 },
             }
 
@@ -275,16 +330,11 @@ async fn main() {
             draw_text_ex(&line, 40.0, lnum as f32 * 18.0 + 100.0, TextParams{font_size: 18, font: Some(&c64_font), color: color_u8!(255,255,255,255), ..Default::default()});
         }*/
 
-        let keys = get_keys_pressed();
-        let mut kchar = Vec::new();
-        while let Some(char) = get_char_pressed(){
-            //to64_tx.send(char).unwrap();//TODO fix unwrap
-            kchar.push(char);
-            println!("CHAR: {}", char);
-        }
+        let keys_down = get_keys_down();
+        let keys_released = get_keys_released();
 
-        if !keys.is_empty() || kchar.len() > 0{
-            let key_pressed = KeysPressed{key_codes: keys, keys: kchar};
+        if !keys_down.is_empty() || !keys_released.is_empty() {
+            let key_pressed = KeysPressed{key_codes: keys_down};
             if let Err(e) = to64_tx.send(key_pressed){
                 println!("Send error {e}");
                 break;
