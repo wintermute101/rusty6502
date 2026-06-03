@@ -1,7 +1,7 @@
 use super::cpu6502::memory::{Memory6502,Memory6502Debug};
 use std::fs::File;
 use std::io::prelude::*;
-use std::time::{Duration,Instant};
+use std::time::{Instant};
 
 pub struct C64CharaterRam{
     pub ram: [u8; 1000],
@@ -82,25 +82,25 @@ impl C64Timer{
         ret
     }
 
-    fn set_hour(&mut self, hour: u8){
+    fn set_hour(&mut self, _hour: u8){
         if self.timer_b_ctrl & 0x80 != 0{
             todo!("TOD alarm");
         }
     }
 
-    fn set_minute(&mut self, minute: u8){
+    fn set_minute(&mut self, _minute: u8){
         if self.timer_b_ctrl & 0x80 != 0{
             todo!("TOD alarm");
         }
     }
 
-    fn set_second(&mut self, second: u8){
+    fn set_second(&mut self, _second: u8){
         if self.timer_b_ctrl & 0x80 != 0{
             todo!("TOD alarm");
         }
     }
 
-    fn set_tens(&mut self, tens: u8){
+    fn set_tens(&mut self, _tens: u8){
         if self.timer_b_ctrl & 0x80 != 0{
             todo!("TOD alarm");
         }
@@ -205,7 +205,9 @@ pub struct C64Memory{
     cia1_port_a: u8,
     //cia1_port_b: u8,
 
+    #[allow(dead_code)]
     cia1_port_a_dir: u8,
+    #[allow(dead_code)]
     cia1_port_b_dir: u8,
 
     cia1_timer: C64Timer,
@@ -228,19 +230,19 @@ impl C64Memory{
 
     pub fn new() -> Self{
         let kernal = C64Memory::load_rom("roms/kernal.901227-02.bin").expect("no kernal");
-        let charater_rom = C64Memory::load_rom("roms/characters.901225-01.bin").expect("no char rom");
+        let character_rom = C64Memory::load_rom("roms/characters.901225-01.bin").expect("no char rom");
         let basic = C64Memory::load_rom("roms/basic.901226-01.bin").expect("no basic");
         //let external_rom = Some(C64Memory::load_rom("roms/c64_burn-in_7.2_5.6.89.bin").expect("no rom"));
         //let external_rom = Some(C64Memory::load_rom("roms/c64_final_burnin_3.0_5.6.89.bin").expect("no rom"));
         //let external_rom = Some(C64Memory::load_rom("roms/c64_diag_rev4.1.1.bin").expect("no rom"));
         let external_rom = None;
 
-        let r = C64Memory { ram: [0; 64*1024],
-            kernal: kernal,
+        C64Memory { ram: [0; 64*1024],
+            kernal,
             basic_rom: basic,
-            character_rom: charater_rom,
+            character_rom,
             color_ram: [0; 1024],
-            external_rom: external_rom,
+            external_rom,
             processor_port_ddr: 0x2f,
             processor_port: 0x37,
             keyboard_map: C64KeyboadMap::new(),
@@ -253,8 +255,7 @@ impl C64Memory{
             background_color:0,
             screen_control1: 0x1b,
             screen_control2: 0xc8
-        };
-        r
+        }
     }
 
     pub fn set_keyboard_map(&mut self, keymap: C64KeyboadMap){
@@ -493,13 +494,10 @@ impl Memory6502 for C64Memory{
             0x0001 => {
                 self.processor_port = value;
             },
-            0xd000 ..= 0xdfff => {
-                if (self.processor_port & 0x03) != 0 && (self.processor_port & 0x04) != 0 {
+            0xd000 ..= 0xdfff
+                if (self.processor_port & 0x03) != 0 && (self.processor_port & 0x04) != 0 => {
                     self.write_io(address, value);
-                } else {
-                    self.ram[address as usize] = value;
-                }
-            }
+                },
             _ => {
                 self.ram[address as usize] = value;
             }

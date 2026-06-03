@@ -20,8 +20,8 @@ fn window_conf() -> Conf {
 }
 
 enum ScreenUpdate{
-    Chars(C64CharaterRam),
-    CharsRam([u8; 4096]),
+    Chars(Box<C64CharaterRam>),
+    CharsRam(Box<[u8; 4096]>),
 }
 
 struct KeysPressed{
@@ -62,7 +62,7 @@ async fn main() {
         let mut debug_mode = false;
 
         let character_set = c64.get_character_rom(true);
-        fromc64_tx.send(ScreenUpdate::CharsRam(character_set.unwrap())).expect("send");
+        fromc64_tx.send(ScreenUpdate::CharsRam(Box::new(character_set.unwrap()))).expect("send");
 
         let mut now = Instant::now();
         while running.load(Ordering::SeqCst){
@@ -116,7 +116,7 @@ async fn main() {
             }
 
             match to64_rx.try_recv(){
-                Err(e) if e == TryRecvError::Empty => {},
+                Err(TryRecvError::Empty) => {},
                 Err(e) => {
                     eprintln!("Error c64rx {}", e);
                     break;
@@ -229,7 +229,7 @@ async fn main() {
             match now.elapsed(){
                 v if v >= Duration::from_millis(200) => {
                     let charram = c64.get_character_ram();
-                    fromc64_tx.send(ScreenUpdate::Chars(charram)).expect("Send");
+                    fromc64_tx.send(ScreenUpdate::Chars(Box::new(charram))).expect("Send");
                     now = Instant::now();
                 }
                 _ => {}
@@ -244,14 +244,14 @@ async fn main() {
         c64.show_screen_ram(true);
     }).expect("thread spawn error");
 
-    let mut charram = C64CharaterRam::new();
+    let mut charram = Box::new(C64CharaterRam::new());
     let mut charrom = None;
     let mut need_redraw = false;
 
     while r2.load(Ordering::SeqCst){
         clear_background(BLACK);
         match fromc64_rx.try_recv(){
-            Err(e) if e == TryRecvError::Empty => {},
+            Err(TryRecvError::Empty) => {},
             Err(e) => {
                 eprintln!("Error graphics rx {}", e);
                 break;
@@ -284,10 +284,12 @@ async fn main() {
         let fg_color = color_u8!(0x88,0x7e,0xcb,255);
 
         let chars = charram.ram;
-        for lnum in 0..25 as usize{
-            for i in 0..40 as usize{
+        let charrom = charrom.as_ref().unwrap();
+
+        for lnum in 0..25_usize{
+            for i in 0..40_usize{
                 let symbol = chars[lnum*40 + i];
-                let symbol_data: [u8; 8] = match charrom.unwrap()[(symbol as usize *8) .. (symbol as usize *8+8)].try_into(){
+                let symbol_data: [u8; 8] = match charrom[(symbol as usize *8) .. (symbol as usize *8+8)].try_into(){
                     Ok(s) => {
                         s
                     }
@@ -295,8 +297,7 @@ async fn main() {
                         panic!("err {} symbol {:#04x}", e, symbol);
                     }
                 };
-                for y in 0..8{
-                    let symbol_row = symbol_data[y];
+                for (y, symbol_row) in symbol_data.iter().enumerate(){
                     for x in 0..8{
 
                         let px = (lnum*8+y+image_y_off)*image_w + i*8 + x + image_x_off;

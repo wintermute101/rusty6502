@@ -1,6 +1,6 @@
 mod cpu6502;
 pub mod c64memory;
-use cpu6502::{CPU6502,CpuError,InterruptType,memory::Memory6502};
+use cpu6502::{CPU6502,CpuError,InterruptType};
 use c64memory::{C64Memory,C64CharaterRam};
 
 use self::{c64memory::C64KeyboadMap, cpu6502::CPUState};
@@ -15,7 +15,7 @@ impl C64{
         let mem = C64Memory::new();
         let cpu = CPU6502::new();
 
-        C64 { cpu: cpu, memory: mem }
+        C64 { cpu, memory: mem }
     }
 
     pub fn reset(&mut self){
@@ -73,7 +73,7 @@ impl C64{
         self.cpu.get_last_state()
     }
 
-    pub fn add_key_stroke(&mut self, keycode: u8){
+    /*pub fn add_key_stroke(&mut self, keycode: u8){
         let buf_pos = self.memory.read_memory(0x00C6);
         println!("Bufpos {}", buf_pos);
         if buf_pos >= 10{
@@ -84,7 +84,7 @@ impl C64{
         self.memory.write_memory(0x00C6,buf_pos + 1);
         let buf_pos = self.memory.read_memory(0x00C6);
         println!("Bufpos2 {}", buf_pos);
-    }
+    }*/
 
     pub fn get_character_rom(&self, always: bool) -> Option<[u8; 4096]>{
         self.memory.get_character_rom(always)

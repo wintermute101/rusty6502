@@ -12,15 +12,18 @@ pub trait Memory6502Debug {
     fn show_zero_page(&self);
 }
 
+#[allow(dead_code)]
 pub struct Memory{
     memory: Vec<u8>,
 }
 
 impl Memory {
+    #[allow(dead_code)]
     pub fn new(size: usize) -> Self{
         Memory{ memory: vec![0; size]}
     }
 
+    #[allow(dead_code)]
     pub fn from_file(file: &str) -> std::io::Result<Self>{
         let mut file = File::open(file)?;
         let file_size = file.metadata()?.len();
@@ -103,7 +106,7 @@ impl std::fmt::Debug for Memory {
 
             if mslicee != last{
                 if lasti+1 != i && i != 0{
-                    fmt.write_str(&format!("*\n"))?;
+                    fmt.write_str("*\n")?;
                 }
                 fmt.write_str(&format!("{:04x}: {:02x?}\n", i*16, mslicee))?;
                 lasti = i;
@@ -115,6 +118,6 @@ impl std::fmt::Debug for Memory {
             last = mslicee;
         }
 
-        fmt.write_str(&format!(""))
+        fmt.write_str("")
     }
 }

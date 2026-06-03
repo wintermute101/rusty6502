@@ -88,7 +88,7 @@ pub struct CpuError{
 
 impl CpuError {
     fn new(error: &str, pc: u16) -> Self{
-        CpuError{error_string: error.to_owned(), pc: pc}
+        CpuError{error_string: error.to_owned(), pc}
     }
 }
 
@@ -101,6 +101,7 @@ impl std::fmt::Display for CpuError {
 impl Error for CpuError {
 }
 
+#[allow(dead_code)]
 #[derive(PartialEq)]
 pub enum InterruptType {
     INT,
@@ -284,7 +285,7 @@ impl CPUState {
     }
 
     fn new(cpu: &CPU6502, ins: u8) -> Self{
-        CPUState { ins: ins, op1: 0, op2: 0, A: cpu.A, X: cpu.X, Y: cpu.Y, P: cpu.P, SP: cpu.SP, PC: cpu.PC, adr: 0 }
+        CPUState { ins, op1: 0, op2: 0, A: cpu.A, X: cpu.X, Y: cpu.Y, P: cpu.P, SP: cpu.SP, PC: cpu.PC, adr: 0 }
     }
 }
 
@@ -337,6 +338,7 @@ impl CPU6502{
         self.P.value = 0x34; // Ensure interrupts are disabled on reset
     }
 
+    #[allow(dead_code)]
     pub fn reset_at(&mut self, start_address: u16) {
         self.PC = start_address;
     }
@@ -359,7 +361,7 @@ impl CPU6502{
                 0
             };
 
-            self.A = (lowa + lowv + self.P.get_C() as u8) % 10 | ((higha + highv + rem) % 10 << 4);
+            self.A = ((lowa + lowv + self.P.get_C() as u8) % 10) | ((higha + highv + rem) % 10) << 4;
             self.P.set_C(highv + higha + rem > 9);
 
             state.P = self.P;
@@ -401,7 +403,7 @@ impl CPU6502{
             };
 
             self.A = (lowa - lowv - !self.P.get_C() as i8).rem_euclid(10) as u8 | (((higha - highv - rem).rem_euclid(10) as u8) << 4);
-            self.P.set_C(!(higha - highv - rem < 0));
+            self.P.set_C(higha - highv - rem >= 0);
 
             state.P = self.P;
             state.op1 = value;
@@ -443,20 +445,17 @@ impl CPU6502{
             AdressingType::ZeroPage => {
                 let addr = memory.read_memory(self.PC);
                 self.PC += 1;
-                let ret = addr as u16;
-                ret
+                addr as u16
             }
             AdressingType::ZeroPageX => {
                 let addr = memory.read_memory(self.PC).overflowing_add(self.X).0;
                 self.PC += 1;
-                let ret = addr as u16;
-                ret
+                addr as u16
             }
             AdressingType::ZeroPageY => {
                 let addr = memory.read_memory(self.PC).overflowing_add(self.Y).0;
                 self.PC += 1;
-                let ret = addr as u16;
-                ret
+                addr as u16
             }
             AdressingType::Absolute => {
                 let ret = memory.read_memory_word(self.PC);
@@ -476,14 +475,12 @@ impl CPU6502{
             AdressingType::Indirect => {
                 let addr1 = memory.read_memory_word(self.PC);
                 self.PC += 2;
-                let ret = memory.read_memory_word(addr1);
-                ret
+                memory.read_memory_word(addr1)
             }
             AdressingType::IndirectX => {
-                let addr1 = memory.read_memory(self.PC).overflowing_add(self.X.into()).0;
+                let addr1 = memory.read_memory(self.PC).overflowing_add(self.X).0;
                 self.PC += 1;
-                let ret = memory.read_memory_word(addr1 as u16);
-                ret
+                memory.read_memory_word(addr1 as u16)
             }
             AdressingType::IndirectY => {
                 let addr1 = memory.read_memory(self.PC);
@@ -538,7 +535,7 @@ impl CPU6502{
                 let mut data = memory.read_memory(address);
                 cpu_state.op1 = data;
                 self.P.set_C(data & 0b1000_0000 != 0);
-                data = data << 1;
+                data <<= 1;
                 self.P.set_NZ(data);
                 memory.write_memory(address, data);
 
@@ -574,7 +571,7 @@ impl CPU6502{
             0x0a => { //ASL Accumulator
                 let mut data = self.A;
                 self.P.set_C(data & 0b1000_0000 != 0);
-                data = data << 1;
+                data <<= 1;
                 self.P.set_NZ(data);
                 self.A = data;
 
@@ -600,7 +597,7 @@ impl CPU6502{
                 let mut data = memory.read_memory(address);
                 cpu_state.op1 = data;
                 self.P.set_C(data & 0b1000_0000 != 0);
-                data = data << 1;
+                data <<= 1;
                 self.P.set_NZ(data);
                 memory.write_memory(address, data);
 
@@ -656,7 +653,7 @@ impl CPU6502{
                 let mut data = memory.read_memory(address);
                 cpu_state.op1 = data;
                 self.P.set_C(data & 0b1000_0000 != 0);
-                data = data << 1;
+                data <<= 1;
                 self.P.set_NZ(data);
                 memory.write_memory(address, data);
 
@@ -703,7 +700,7 @@ impl CPU6502{
                 let mut data = memory.read_memory(address);
                 cpu_state.op1 = data;
                 self.P.set_C(data & 0b1000_0000 != 0);
-                data = data << 1;
+                data <<= 1;
                 self.P.set_NZ(data);
                 memory.write_memory(address, data);
 
@@ -733,7 +730,7 @@ impl CPU6502{
             0x21 => { //AND IndirectX
                 let address = self.get_address(AdressingType::IndirectX, memory);
                 let data = memory.read_memory(address);
-                self.A = self.A & data;
+                self.A &= data;
                 self.P.set_NZ(self.A);
 
                 cpu_state.P = self.P;
@@ -759,13 +756,13 @@ impl CPU6502{
             0x25 => { //AND ZeroPage
                 let address = self.get_address(AdressingType::ZeroPage, memory);
                 let data = memory.read_memory(address);
-                self.A = self.A & data;
+                self.A &= data;
                 self.P.set_NZ(self.A);
 
-                cpu_state.P = self.P;
+                /*cpu_state.P = self.P;
                 cpu_state.op1 = data;
                 cpu_state.A = self.A;
-                cpu_state.adr = address;
+                cpu_state.adr = address;*/
             }
 
             0x26 => { //ROL ZeroPage
@@ -800,7 +797,7 @@ impl CPU6502{
             0x29 => { //AND Immidiate
                 let data = memory.read_memory(self.PC);
                 self.PC += 1;
-                self.A = self.A & data;
+                self.A &= data;
                 self.P.set_NZ(self.A);
 
                 cpu_state.P = self.P;
@@ -838,7 +835,7 @@ impl CPU6502{
             0x2d => { //AND Absolute
                 let address = self.get_address(AdressingType::Absolute, memory);
                 let data = memory.read_memory(address);
-                self.A = self.A & data;
+                self.A &= data;
                 self.P.set_NZ(self.A);
 
                 cpu_state.P = self.P;
@@ -880,7 +877,7 @@ impl CPU6502{
             0x31 => { //AND IndirectY
                 let address = self.get_address(AdressingType::IndirectY, memory);
                 let data = memory.read_memory(address);
-                self.A = self.A & data;
+                self.A &= data;
                 self.P.set_NZ(self.A);
 
                 cpu_state.P = self.P;
@@ -893,7 +890,7 @@ impl CPU6502{
             0x35 => { //AND ZeroPageX
                 let address = self.get_address(AdressingType::ZeroPageX, memory);
                 let data = memory.read_memory(address);
-                self.A = self.A & data;
+                self.A &= data;
                 self.P.set_NZ(self.A);
 
                 cpu_state.P = self.P;
@@ -928,7 +925,7 @@ impl CPU6502{
             0x39 => { //AND AbsoluteY
                 let address = self.get_address(AdressingType::AbsoluteY, memory);
                 let data = memory.read_memory(address);
-                self.A = self.A & data;
+                self.A &= data;
                 self.P.set_NZ(self.A);
 
                 cpu_state.P = self.P;
@@ -941,7 +938,7 @@ impl CPU6502{
             0x3d => { //AND AbsoluteX
                 let address = self.get_address(AdressingType::AbsoluteX, memory);
                 let data = memory.read_memory(address);
-                self.A = self.A & data;
+                self.A &= data;
                 self.P.set_NZ(self.A);
 
                 cpu_state.P = self.P;
@@ -987,7 +984,7 @@ impl CPU6502{
             0x41 => { //EOR IndirectX
                 let address = self.get_address(AdressingType::IndirectX, memory);
                 let data = memory.read_memory(address);
-                self.A = self.A ^ data;
+                self.A ^= data;
                 self.P.set_NZ(self.A);
 
                 cpu_state.P = self.P;
@@ -1000,7 +997,7 @@ impl CPU6502{
             0x45 => { //EOR ZeroPage
                 let address = self.get_address(AdressingType::ZeroPage, memory);
                 let data = memory.read_memory(address);
-                self.A = self.A ^ data;
+                self.A ^= data;
                 self.P.set_NZ(self.A);
 
                 cpu_state.P = self.P;
@@ -1015,7 +1012,7 @@ impl CPU6502{
                 let mut data = memory.read_memory(address);
                 cpu_state.op1 = data;
                 self.P.set_C(data & 0b0000_0001 != 0);
-                data = data >> 1;
+                data >>= 1;
                 memory.write_memory(address, data);
                 self.P.set_NZ(data);
 
@@ -1040,7 +1037,7 @@ impl CPU6502{
             0x49 => { //EOR Immediate
                 let data = memory.read_memory(self.PC);
                 self.PC += 1;
-                self.A = self.A ^ data;
+                self.A ^= data;
                 self.P.set_NZ(self.A);
 
                 cpu_state.P = self.P;
@@ -1052,7 +1049,7 @@ impl CPU6502{
             0x4a => { //LSR Accumulator
                 let mut data = self.A;
                 self.P.set_C(data & 0b0000_0001 != 0);
-                data = data >> 1;
+                data >>= 1;
                 self.A = data;
                 self.P.set_NZ(data);
 
@@ -1072,7 +1069,7 @@ impl CPU6502{
             0x4d => { //EOR Absolute
                 let address = self.get_address(AdressingType::Absolute, memory);
                 let data = memory.read_memory(address);
-                self.A = self.A ^ data;
+                self.A ^= data;
                 self.P.set_NZ(self.A);
 
                 cpu_state.P = self.P;
@@ -1087,7 +1084,7 @@ impl CPU6502{
                 let mut data = memory.read_memory(address);
                 cpu_state.op1 = data;
                 self.P.set_C(data & 0b0000_0001 != 0);
-                data = data >> 1;
+                data >>= 1;
                 memory.write_memory(address, data);
                 self.P.set_NZ(data);
 
@@ -1113,7 +1110,7 @@ impl CPU6502{
             0x51 => { //EOR IndirectY
                 let address = self.get_address(AdressingType::IndirectY, memory);
                 let data = memory.read_memory(address);
-                self.A = self.A ^ data;
+                self.A ^= data;
                 self.P.set_NZ(self.A);
 
                 cpu_state.P = self.P;
@@ -1126,7 +1123,7 @@ impl CPU6502{
             0x55 => { //EOR ZeroPageX
                 let address = self.get_address(AdressingType::ZeroPageX, memory);
                 let data = memory.read_memory(address);
-                self.A = self.A ^ data;
+                self.A ^= data;
                 self.P.set_NZ(self.A);
 
                 cpu_state.P = self.P;
@@ -1141,7 +1138,7 @@ impl CPU6502{
                 let mut data = memory.read_memory(address);
                 cpu_state.op1 = data;
                 self.P.set_C(data & 0b0000_0001 != 0);
-                data = data >> 1;
+                data >>= 1;
                 memory.write_memory(address, data);
                 self.P.set_NZ(data);
 
@@ -1161,7 +1158,7 @@ impl CPU6502{
             0x59 => { //EOR AbsoluteY
                 let address = self.get_address(AdressingType::AbsoluteY, memory);
                 let data = memory.read_memory(address);
-                self.A = self.A ^ data;
+                self.A ^= data;
                 self.P.set_NZ(self.A);
 
                 cpu_state.P = self.P;
@@ -1174,7 +1171,7 @@ impl CPU6502{
             0x5d => { //EOR AbsoluteX
                 let address = self.get_address(AdressingType::AbsoluteX, memory);
                 let data = memory.read_memory(address);
-                self.A = self.A ^ data;
+                self.A ^= data;
                 self.P.set_NZ(self.A);
 
                 cpu_state.P = self.P;
@@ -1189,7 +1186,7 @@ impl CPU6502{
                 let mut data = memory.read_memory(address);
                 cpu_state.op1 = data;
                 self.P.set_C(data & 0b0000_0001 != 0);
-                data = data >> 1;
+                data >>= 1;
                 memory.write_memory(address, data);
                 self.P.set_NZ(data);
 
@@ -2229,7 +2226,7 @@ impl CPU6502{
         }
 
         if self.PC == self.prev_PC{
-            return Err(CpuError::new(&format!("LOOP Detected"), self.PC));
+            return Err(CpuError::new("LOOP Detected", self.PC));
         }
         self.prev_PC = self.PC;
 
@@ -2237,7 +2234,7 @@ impl CPU6502{
     }
 
     pub fn interrupt<MemT: Memory6502>(&mut self, int: InterruptType, memory: &mut MemT){
-        let mut state = CPUState::new(&self, 0x00);
+        let mut state = CPUState::new(self, 0x00);
         if self.P.get_I() && int == InterruptType::INT{
             return;
         }
