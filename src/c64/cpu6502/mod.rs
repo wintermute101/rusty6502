@@ -414,7 +414,7 @@ impl CPU6502{
 
     fn add_trace(&mut self, state: CPUState){
         if let Some(buf) = self.trace.as_mut(){
-            buf.push(state);
+            buf.enqueue(state);
         }
     }
 
