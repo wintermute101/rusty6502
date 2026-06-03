@@ -74,7 +74,7 @@ impl C64Timer{
                     }
                     self.timer_a_counter = self.timer_a_latch;
                     self.int_vec_read |= 0x81;
-                    ret = true;
+                    if (self.int_vec_set & 0x01) != 0 { ret = true; }
                 }
                 self.timer_a_last = t;
             }
