@@ -6,9 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ctrlc = "3.4.2"
-macroquad = "0.4.5"
-ringbuffer = "0.15.0"
+ctrlc = "3.5.2"
+macroquad = "0.4.15"
+ringbuffer = "0.16.0"
 
 [profile.release]
 debug = true
