@@ -321,7 +321,7 @@ impl std::fmt::Debug for CPU6502 {
 
 impl CPU6502{
     pub fn new() -> Self{
-        CPU6502 { A: 0, X: 0, Y: 0, PC: 0, SP: 0xff, P: StatusRegister { value: 0 }, prev_PC: 0, trace: None, trace_line_limit: 0 }
+        CPU6502 { A: 0, X: 0, Y: 0, PC: 0, SP: 0xff, P: StatusRegister { value: 0x34 }, prev_PC: 0, trace: None, trace_line_limit: 0 }
     }
 
     pub fn enable_trace(&mut self, trace_size_limit: usize){
@@ -334,6 +334,7 @@ impl CPU6502{
     pub fn reset<MemT: Memory6502>(&mut self, memory: &mut MemT) {
         let resetvec_addr = memory.read_memory_word(0xfffc);
         self.PC = resetvec_addr;
+        self.P.value = 0x34; // Ensure interrupts are disabled on reset
     }
 
     pub fn reset_at(&mut self, start_address: u16) {
@@ -788,7 +789,7 @@ impl CPU6502{
                 self.SP = r.0;
                 let address = 0x0100 | self.SP as u16;
                 let data = memory.read_memory(address);
-                self.P.value = data & 0b1100_1111; //ignore B and bit 5
+                self.P.value = (data & 0xCF) | 0x20; // Pull flags, ignore B, bit 5 is always 1
 
                 cpu_state.P = self.P;
                 cpu_state.adr = address;
