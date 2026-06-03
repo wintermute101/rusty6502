@@ -131,7 +131,7 @@ impl C64Timer{
             self.int_vec_set |= set_int;
         }
         else{
-            self.int_vec_set &= set_int;
+            self.int_vec_set &= !set_int;
         }
     }
 
