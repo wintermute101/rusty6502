@@ -189,11 +189,11 @@ async fn main() {
                             KeyCode::X => c64.add_key_stroke(0x58),
                             KeyCode::Y => c64.add_key_stroke(0x59),
                             KeyCode::Z => c64.add_key_stroke(0x5a),
+                            KeyCode::Backspace => c64.add_key_stroke(0x14),
 
                             KeyCode::F1 => {c64.interrupt();}
                             KeyCode::F6 => {debug_mode = true;},
                             KeyCode::Escape => {c64.reset();}
-                            KeyCode::Backspace => c64.add_key_stroke(0x14),
                             _ => {println!("Not supported key {:?}", i)},
                         }
                     }
